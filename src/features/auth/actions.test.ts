@@ -31,9 +31,9 @@ describe("role homes", () => {
 });
 
 describe("demoLoginAction", () => {
-  it("lists 1 admiral, 7 managers, 3 captains and 4 customers", () => {
+  it("lists 1 admiral, 7 managers, 4 captains and 4 customers", () => {
     const count = (role: string) => DEMO_USERS.filter((demo) => demo.role === role).length;
-    expect(ROLES.map(count)).toEqual([1, 7, 3, 4]);
+    expect(ROLES.map(count)).toEqual([1, 7, 4, 4]);
   });
 
   it.each(DEMO_USERS)("logs in $email and lands on the $role home", async ({ email, role }) => {

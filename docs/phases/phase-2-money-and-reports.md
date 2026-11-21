@@ -258,7 +258,7 @@ Counting rule for every slice here (D11): money counts only when delivered. Orde
 Extend the seed (details in `plan.md` section 11):
 
 - About 30 orders covering all 9 statuses, spread over the last 30 days.
-- Several COMPLETED trips, including one loss trip. One CANCELLED trip. One open trip in PLANNING and one in LANDED.
+- Several COMPLETED trips, including one loss trip. One CANCELLED trip. One open trip in each of PLANNING, LOADED, LIFTED_OFF and LANDED, one per captain (4 captains).
 - One rejected order with a reason.
 - A few old ACCEPTED small orders to far planets that nobody picked.
 - One product whose price changed after some deliveries, with its history row.

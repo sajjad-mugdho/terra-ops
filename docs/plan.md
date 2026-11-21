@@ -400,8 +400,8 @@ No browser end-to-end tests. The flows are checked by hand on the live URL at th
 
 - Earth is not in the planets table. It is the origin of every trip, never a destination (D30).
 - Locations: 2 sectors per planet, 2 to 3 divisions per sector. Includes Mars → Olympus Sector → Division 7.
-- Users: 1 Admiral, 7 managers (one per planet), 3 captains, 4 customers. One shared demo password **[Confirm value]**. Emails like `admiral@terra.demo`, `manager.mars@terra.demo` **[Confirm]**.
-- History: about 30 orders covering every status · several COMPLETED trips including one loss trip · one CANCELLED trip · one open trip in each of PLANNING and LANDED · one rejected order · a few old ACCEPTED small orders to far planets that nobody picked (shows waiting time) · one product whose price changed after some deliveries, with its history row (proves snapshots).
+- Users: 1 Admiral, 7 managers (one per planet), 4 captains, 4 customers. One shared demo password **[Confirm value]**. Emails like `admiral@terra.demo`, `manager.mars@terra.demo` **[Confirm]**.
+- History: about 30 orders covering every status · several COMPLETED trips including one loss trip · one CANCELLED trip · one open trip in each of PLANNING, LOADED, LIFTED_OFF and LANDED · one rejected order · a few old ACCEPTED small orders to far planets that nobody picked (shows waiting time) · one product whose price changed after some deliveries, with its history row (proves snapshots).
 - Seeded timestamps are spread over the last 30 days so date filters have something to show.
 
 ---

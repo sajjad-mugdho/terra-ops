@@ -22,7 +22,7 @@ import { EXPECTED, OLD_WATER_PRICE_CENTS } from "./history-data";
 import { seedReference } from "./reference";
 
 const ADMIRAL = "admiral@terra.demo";
-const CAPTAINS = ["captain1@terra.demo", "captain2@terra.demo", "captain3@terra.demo"];
+const CAPTAINS = ["captain1@terra.demo", "captain2@terra.demo", "captain3@terra.demo", "captain4@terra.demo"];
 const MANAGERS = ["manager.mars@terra.demo", "manager.venus@terra.demo", "manager.mercury@terra.demo"];
 
 // The events an order must have to be in each status.
@@ -48,12 +48,36 @@ beforeAll(async () => {
 });
 
 describe("seedHistory", () => {
-  it("creates the same 30 orders on every run, in the listed statuses", async () => {
+  it("creates the same 32 orders on every run, in the listed statuses", async () => {
     expect(await db.$count(orders)).toBe(EXPECTED.orders);
     switchTo(ADMIRAL);
     expect(await getPipeline()).toEqual(
       ORDER_STATUSES.map((status) => ({ status, count: EXPECTED.byStatus[status] })),
     );
+  });
+
+  it("has at least one order and one open trip in every status", async () => {
+    for (const status of ORDER_STATUSES) expect(EXPECTED.byStatus[status]).toBeGreaterThan(0);
+    for (const status of TRIP_STATUSES) expect(EXPECTED.tripsByStatus[status]).toBeGreaterThan(0);
+  });
+
+  it("has a full LOADED trip whose orders are all LOADED", async () => {
+    const [loaded] = await db.select().from(trips).where(eq(trips.status, "LOADED"));
+    expect(loaded.totalUnits).toBe(20);
+    expect(loaded.loadedAt).not.toBeNull();
+    expect(loaded.liftedOffAt).toBeNull();
+
+    const riding = await db
+      .select({ status: orders.status, totalUnits: orders.totalUnits })
+      .from(orders)
+      .where(eq(orders.tripId, loaded.id));
+    expect(riding.map((order) => order.status)).toEqual(["LOADED", "LOADED"]);
+    expect(riding.reduce((sum, order) => sum + order.totalUnits, 0)).toBe(loaded.totalUnits);
+
+    switchTo("captain4@terra.demo");
+    const mine = await listMyTrips();
+    expect(mine.map((trip) => trip.status)).toEqual(["LOADED"]);
+    expect((await listAvailableOrders(loaded.id)).map((order) => order.fits)).toEqual([false]);
   });
 
   it("creates trips in every listed status, at most one open trip per captain", async () => {
@@ -91,7 +115,7 @@ describe("seedHistory", () => {
       expect(await getMyEarnings()).toEqual(EXPECTED.captains[index]);
       lists.push(await listMyTrips());
     }
-    expect(lists.every((list) => list.some((trip) => trip.status === "COMPLETED"))).toBe(true);
+    expect(lists.slice(0, 3).every((list) => list.some((trip) => trip.status === "COMPLETED"))).toBe(true);
     expect(lists.flat().some((trip) => trip.status === "COMPLETED" && trip.profitCents === -1500)).toBe(true);
     expect(lists.flat().some((trip) => trip.status === "COMPLETED" && trip.profitCents === 5000)).toBe(true);
     expect(lists.flat().filter((trip) => trip.status === "CANCELLED")).toHaveLength(1);

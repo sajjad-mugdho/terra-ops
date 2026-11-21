@@ -97,7 +97,7 @@
 | Layer | Work |
 |---|---|
 | Schema | Role CHECK on `user`. `planets.manager_id NOT NULL UNIQUE` (D7, see `database.md`). No planet column on `user`. Migration |
-| Seed | 1 Admiral, 7 managers, 3 captains, 4 customers, created through Better Auth **[C2]** |
+| Seed | 1 Admiral, 7 managers, 4 captains, 4 customers, created through Better Auth **[C2]** |
 | Service | `auth/session.ts`: `getCurrentUser()` in React `cache()`, `requireUser()`, `requireRole()`. `auth/roles.ts`: role list and role home map |
 | Routing | `proxy.ts` optimistic guard. `(auth)/login`. `(app)` layout with app shell. One layout per role segment calling `requireRole`. `/` redirect |
 | UI | Login form (`useActionState`), app shell: product name, role label, user name, planet name for managers, role nav, log out. Empty home page per role |
@@ -185,7 +185,7 @@
 
 ### Acceptance criteria
 
-- [ ] All 15 demo accounts (1 + 7 + 3 + 4) are listed and each button logs in to the right role home.
+- [ ] All 16 demo accounts (1 + 7 + 4 + 4) are listed and each button logs in to the right role home.
 - [ ] The seed and the login page use the same list, so they cannot drift apart.
 - [ ] Works on the live URL.
 

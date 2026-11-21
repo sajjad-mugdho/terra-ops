@@ -20,6 +20,7 @@ export const DEMO_USERS: DemoUser[] = [
   { email: "captain1@terra.demo", name: "Captain Vega", role: "captain" },
   { email: "captain2@terra.demo", name: "Captain Orion", role: "captain" },
   { email: "captain3@terra.demo", name: "Captain Lyra", role: "captain" },
+  { email: "captain4@terra.demo", name: "Captain Rigel", role: "captain" },
   { email: "customer1@terra.demo", name: "Mira Chen", role: "customer" },
   { email: "customer2@terra.demo", name: "Jonas Okafor", role: "customer" },
   { email: "customer3@terra.demo", name: "Priya Nair", role: "customer" },

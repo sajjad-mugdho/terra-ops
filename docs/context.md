@@ -91,7 +91,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D6 | Time | Captains mark every step manually. No time gate. ETA = `lifted_off_at + days_from_earth`, shown as an estimate only |
 | D7 | Managers | Exactly one manager per planet, mandatory. 7 planets, 7 managers. Enforced in the database |
 | D8 | Sign-up | Customers sign up publicly with email + password. New accounts are always `customer` (`input: false`) |
-| D9 | Staff accounts | Admiral, 7 managers and 3 captains come from the seed only. No staff management UI. Listed as "what I would build next" |
+| D9 | Staff accounts | Admiral, 7 managers and 4 captains come from the seed only. No staff management UI. Listed as "what I would build next" |
 | D10 | RBAC | Every read and write is checked on the server: session, role, scope |
 | D11 | Reports | One rule for every report: money counts only when delivered. Orders on the way show as "In progress". Rejected orders never count |
 | D12 | Nice-to-haves | Expected trip profit while building a trip, order waiting time, auto-refresh of order status, pagination + search, settings change history |
@@ -124,7 +124,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D39 | Timeline of a returned order | An order that leaves a trip gets an ACCEPTED event that carries the trip. The timeline shows it as "Removed from trip". The note is "Removed from trip" or "Trip cancelled" |
 | D40 | Lists before Phase 4 | `listMyOrders` and `listPlanetOrders` return every row, with no `page`, `q` or `status` yet. Pagination, search, auto-refresh, waiting time and expected trip profit stay in Phases 3 and 4 |
 | D41 | Report date range | C5 used as proposed: the default is today and the 30 days before it, in UTC. `from` and `to` are in the URL, both days included. A missing or invalid range in the URL falls back to the default. A start date after the end date is stopped in the form, so the last result stays on screen |
-| D42 | Seed statuses | The seed shows 8 of the 9 order statuses. With 3 captains and one open trip each, the open trips are PLANNING, LIFTED_OFF and LANDED, so no order is LOADED. One click on "Mark as loaded" shows it |
+| D42 | Seed statuses | The seed shows all 9 order statuses and all 6 trip statuses. A captain has one open trip, and the open trips needed are PLANNING, LOADED, LIFTED_OFF and LANDED, so the seed has 4 captains. Captain 4 holds the LOADED trip: a full ship of 20 units to Uranus |
 | D43 | Cancelled trip money | A cancelled trip is listed with earnings, fuel and profit of zero: it never flew. Its frozen fuel cost stays on the row |
 | D44 | Captain money DTO | Trip earnings and profit are in their own DTO (`TripRow`, from `listMyTrips` and `getMyTripRow`). `TripDetail` stays as in Phase 1, without money totals |
 | D45 | Phase 2 limits | Admiral order and trip lists filter by status and planet. Pagination and search stay in Phase 4, `getOverdueCount` in slice 3.2, the settings history page in Phase 5 (D19). History rows are written now |
@@ -138,7 +138,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | Seed managers for at least 3 planets | A manager for all 7 planets |
 | Company counts DELIVERED orders, captain counts COMPLETED trips, manager report unspecified | One rule for all reports: delivered (D11) |
 | Nice-to-haves only if time is left | All in scope, phase by phase (D1) |
-| Seed users: 1 admiral, 3+ managers, 3 captains, 4 customers | 1 admiral, 7 managers, 3 captains, 4 customers, plus public customer sign-up |
+| Seed users: 1 admiral, 3+ managers, 3 captains, 4 customers | 1 admiral, 7 managers, 4 captains, 4 customers, plus public customer sign-up |
 
 ## Plan
 
@@ -160,6 +160,14 @@ Reference material (data model, status machines, money, permissions) is in `plan
 - Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
 
 ## Changelog
+
+### 2026-11-22 · Phase 2, seed shows every status
+
+- D42 changed: the seed now has an order in LOADED, so all 9 order statuses and all 6 trip statuses can be seen without creating data.
+- A fourth demo captain (`captain4@terra.demo`, D9) holds a LOADED trip to Uranus with two orders, 20 units. Four open trips need four captains, because a captain has one open trip.
+- Seed is now 32 orders and 11 trips, with 16 demo accounts. Dashboard totals and captain earnings are unchanged: nothing on the new trip is delivered.
+- New seed tests: every status has at least one order and one trip, and the LOADED trip is full with both orders LOADED.
+- 807 automated tests (804 before).
 
 ### 2026-11-22 · Phase 2, money and reports
 

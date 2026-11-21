@@ -24,7 +24,7 @@ export type SeedOrder = {
 };
 
 export type SeedTrip = {
-  captain: 1 | 2 | 3;
+  captain: 1 | 2 | 3 | 4;
   planet: PlanetName;
   status: TripStatus;
   created: number;
@@ -166,6 +166,18 @@ export const TRIPS: SeedTrip[] = [
     ],
   },
   {
+    // Loaded and locked: a full ship of 20 units, waiting for lift-off.
+    captain: 4,
+    planet: "Uranus",
+    status: "LOADED",
+    created: d(0, 8),
+    loaded: d(0, 4),
+    orders: [
+      { customer: 1, to: ["Titania Sector", "Division 2"], items: [["Oxygen", 8], ["Machines", 2]], placed: d(2), accepted: d(1, 18) },
+      { customer: 4, to: ["Oberon Sector", "Division 2"], items: [["Food", 10]], placed: d(1, 20), accepted: d(1, 12) },
+    ],
+  },
+  {
     captain: 2,
     planet: "Venus",
     status: "PLANNING",
@@ -203,19 +215,19 @@ export const LOOSE_ORDERS: SeedOrder[] = [
 
 // Worked out by hand from the lists above. A test compares them with the reports.
 export const EXPECTED = {
-  orders: 30,
+  orders: 32,
   byStatus: {
     PLACED: 5,
     ACCEPTED: 6,
     REJECTED: 1,
     ASSIGNED: 2,
-    LOADED: 0,
+    LOADED: 2,
     LIFTED_OFF: 2,
     LANDED: 1,
     AT_SECTOR: 1,
     DELIVERED: 12,
   },
-  tripsByStatus: { PLANNING: 1, LOADED: 0, LIFTED_OFF: 1, LANDED: 1, COMPLETED: 6, CANCELLED: 1 },
+  tripsByStatus: { PLANNING: 1, LOADED: 1, LIFTED_OFF: 1, LANDED: 1, COMPLETED: 6, CANCELLED: 1 },
   totals: { unitsDelivered: 99, revenueCents: 133900, makingCostCents: 82600, profitCents: 51300 },
   // Highest profit first, then by name.
   planets: [
@@ -227,10 +239,11 @@ export const EXPECTED = {
     { planet: "Saturn", units: 0, revenueCents: 0, makingCostCents: 0, profitCents: 0 },
     { planet: "Uranus", units: 0, revenueCents: 0, makingCostCents: 0, profitCents: 0 },
   ],
-  // Completed trips only.
+  // Completed trips only. Captain 4 has none yet.
   captains: [
     { trips: 2, units: 37, earningsCents: 26100, fuelCents: 15000, profitCents: 11100 },
     { trips: 2, units: 36, earningsCents: 12400, fuelCents: 5500, profitCents: 6900 },
     { trips: 2, units: 20, earningsCents: 7000, fuelCents: 6500, profitCents: 500 },
+    { trips: 0, units: 0, earningsCents: 0, fuelCents: 0, profitCents: 0 },
   ],
 };
