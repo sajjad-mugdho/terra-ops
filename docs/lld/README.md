@@ -133,7 +133,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `/manager/orders/[id]` | Manager | `getPlanetOrder` | — |
 | `/manager/report` | Manager | `getPlanetPurchases`, `getPlanetInProgress` | — |
 | `/captain/trip` | Captain | `getMyOpenTrip`, `listPlanetsForTrip`, `listAvailableOrders` | 10 to 18 |
-| `/captain/trips` | Captain | `listMyTrips`, `getMyEarnings` | — |
+| `/captain/trips` | Captain | `listMyTrips`, `getMyEarnings`, `getMyOpenTrip` | — |
 | `/captain/trips/[id]` | Captain | `getMyTrip`, `getMyTripRow` | — |
 | `/admiral` | Admiral | `getCompanyTotals`, `getPlanetProfitSummary`, `getPlanetProductTable`, `getPipeline`, `getOverdueCount` | — |
 | `/admiral/orders` | Admiral | `listAllOrders`, `listPlanetsForAdmiral` | — |
@@ -152,8 +152,8 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 
 | Parameter | Used on | Values |
 |---|---|---|
-| `page` | All paged lists | Integer ≥ 1. Bad value → 1 |
-| `q` | Order and trip lists | Search text, max 100 chars |
+| `page` | All paged lists | Integer ≥ 1. Bad value → 1. Past the end → last page |
+| `q` | Order lists, `/admiral/trips` | Search text, max 100 chars. Order code, plus customer name for manager and Admiral. Trip code on `/admiral/trips` |
 | `status` | Order and trip lists | A status name. Unknown → ignored |
 | `planet` | Admiral lists | Planet ID |
 | `from`, `to` | Reports | `YYYY-MM-DD`, UTC. Default last 30 days |

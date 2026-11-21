@@ -42,11 +42,10 @@ describe("signIn", () => {
   });
 
   it("gives the same message for a wrong password and an unknown email", async () => {
-    const wrongPassword = signIn({ email: "admiral@terra.demo", password: "wrong-password" });
-    const unknownEmail = signIn({ email: "nobody@terra.demo", password: DEMO_PASSWORD });
     const expected = { code: "INVALID", message: "Invalid email or password" };
-    await expect(wrongPassword).rejects.toMatchObject(expected);
-    await expect(unknownEmail).rejects.toMatchObject(expected);
+    // One at a time: a rejection nobody awaits yet fails the whole run as "unhandled".
+    await expect(signIn({ email: "admiral@terra.demo", password: "wrong-password" })).rejects.toMatchObject(expected);
+    await expect(signIn({ email: "nobody@terra.demo", password: DEMO_PASSWORD })).rejects.toMatchObject(expected);
   });
 });
 

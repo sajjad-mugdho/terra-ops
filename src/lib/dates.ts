@@ -12,6 +12,19 @@ export function formatUtc(date: Date): string {
   return `${utcFormat.format(date)} UTC`;
 }
 
+const utcTimeFormat = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "UTC",
+});
+
+// Time of day only, for "Updated 14:05:09 UTC" on live pages.
+export function formatUtcTime(date: Date): string {
+  return `${utcTimeFormat.format(date)} UTC`;
+}
+
 export function formatDuration(from: Date, to: Date): string {
   const minutes = Math.max(0, Math.floor((to.getTime() - from.getTime()) / 60_000));
   const days = Math.floor(minutes / 1440);

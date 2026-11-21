@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { requirePageRole } from "@/features/auth/guards";
@@ -15,7 +16,7 @@ import {
   type TripDetail,
 } from "@/features/trips/service";
 import { tripCode, tripLabel } from "@/features/trips/status";
-import { formatUtc } from "@/lib/dates";
+import { formatUtc, formatUtcTime } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "My trip" };
 
@@ -70,10 +71,12 @@ export default async function CaptainTripPage({ searchParams }: PageProps<"/capt
   );
 
   if (trip.status === "PLANNING") {
+    const now = new Date();
     return (
       <>
         {header}
-        <TripBuilder trip={trip} available={await listAvailableOrders(trip.id)} now={new Date()} />
+        <AutoRefresh updatedAt={formatUtcTime(now)} />
+        <TripBuilder trip={trip} available={await listAvailableOrders(trip.id)} now={now} />
       </>
     );
   }

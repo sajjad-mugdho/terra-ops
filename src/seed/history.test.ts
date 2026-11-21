@@ -76,7 +76,7 @@ describe("seedHistory", () => {
     expect(riding.reduce((sum, order) => sum + order.totalUnits, 0)).toBe(loaded.totalUnits);
 
     switchTo("captain4@terra.demo");
-    const mine = await listMyTrips();
+    const mine = (await listMyTrips()).rows;
     expect(mine.map((trip) => trip.status)).toEqual(["LOADED"]);
     expect((await listAvailableOrders(loaded.id)).map((order) => order.fits)).toEqual([false]);
   });
@@ -114,7 +114,7 @@ describe("seedHistory", () => {
     for (const [index, captain] of CAPTAINS.entries()) {
       switchTo(captain);
       expect(await getMyEarnings()).toEqual(EXPECTED.captains[index]);
-      lists.push(await listMyTrips());
+      lists.push((await listMyTrips()).rows);
     }
     expect(lists.slice(0, 3).every((list) => list.some((trip) => trip.status === "COMPLETED"))).toBe(true);
     expect(lists.flat().some((trip) => trip.status === "COMPLETED" && trip.profitCents === -1500)).toBe(true);
@@ -198,14 +198,14 @@ describe("seedHistory", () => {
     expect((await getPlanetPurchases(defaultRange())).total).toMatchObject({ units: 35, productAmountCents: 48400 });
 
     switchTo("captain2@terra.demo");
-    const open = (await listMyTrips()).find((trip) => trip.status === "PLANNING");
+    const open = ((await listMyTrips()).rows).find((trip) => trip.status === "PLANNING");
     const available = await listAvailableOrders(open?.id ?? "");
     expect(available.map((order) => order.fits).sort()).toEqual([false, true]);
   });
 
   it("shows the old unpicked orders as overdue, longest waiting first", async () => {
     switchTo(ADMIRAL);
-    const overdue = await listAllOrders({ overdue: true, sort: "waiting" });
+    const overdue = (await listAllOrders({ overdue: true, sort: "waiting" })).rows;
     expect(overdue.map((order) => [order.destination.planet, order.status, order.totalUnits])).toEqual([
       ["Uranus", "ACCEPTED", 2],
       ["Neptune", "ACCEPTED", 1],

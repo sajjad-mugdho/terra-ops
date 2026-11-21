@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -16,9 +16,11 @@ import {
 import { requireManagerPlanet, requireRole } from "@/features/auth/session";
 import { getDivisionWithPlanet } from "@/features/locations/service";
 import { AppError } from "@/lib/errors";
+import { type Paged, pageWindow } from "@/lib/pagination";
+import { likePattern, parseSearch } from "@/lib/search";
 import { lineTotalCents, makingCostCents, mergeLines, orderTotals } from "./pricing";
 import type { PlaceOrderInput } from "./schemas";
-import { eventLabel, type OrderStatus, type PaymentStatus } from "./status";
+import { eventLabel, ORDER_CODE_PREFIX, type OrderStatus, type PaymentStatus } from "./status";
 import { type OrderSort, OVERDUE_DAYS, waitingSince } from "./waiting";
 
 export type Destination = { planet: string; sector: string; division: string };
@@ -73,8 +75,9 @@ export type OrderDetail = {
 
 export type PlanetOrderDetail = OrderDetail & { customerName: string };
 
-export type OrderFilter = {
-  status?: OrderStatus;
+export type OrderListInput = { page?: number; q?: string; status?: OrderStatus };
+
+export type OrderFilter = OrderListInput & {
   planetId?: string;
   overdue?: boolean;
   sort?: OrderSort;
@@ -190,8 +193,24 @@ export async function placeOrder(input: PlaceOrderInput): Promise<{ id: string; 
 
 type Listed = { order: OrderListRow; customerName: string; waitingSince: Date | null };
 
-async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[]> {
-  const rows = await db
+// The code as the user reads it, e.g. "ORD-12", so a search matches what is on screen.
+const orderCodeText = sql<string>`${ORDER_CODE_PREFIX}::text || ${orders.number}::text`;
+
+// Customers search their own orders by code only. Staff may also search the customer name.
+function matchesSearch(q: string | undefined, byCustomerName: boolean): SQL | undefined {
+  const text = parseSearch(q);
+  if (!text) return undefined;
+  const pattern = likePattern(text);
+  const code = ilike(orderCodeText, pattern);
+  return byCustomerName ? or(code, ilike(user.name, pattern)) : code;
+}
+
+async function listOrders(
+  where: SQL | undefined,
+  order: SQL[],
+  window?: { limit: number; offset: number },
+): Promise<Listed[]> {
+  const query = db
     .select({
       id: orders.id,
       number: orders.number,
@@ -214,6 +233,7 @@ async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[
     .innerJoin(paid, eq(paid.orderId, orders.id))
     .where(where)
     .orderBy(...order);
+  const rows = await (window ? query.limit(window.limit).offset(window.offset) : query);
 
   return rows.map(({ planet, sector, division, customerName, acceptedAt, ...row }) => ({
     order: { ...row, destination: { planet, sector, division } },
@@ -221,6 +241,25 @@ async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[
     waitingSince: waitingSince({ status: row.status, createdAt: row.createdAt, acceptedAt }),
   }));
 }
+
+// One count query, then one page query. A page past the end shows the last page.
+async function pageOrders(where: SQL | undefined, order: SQL[], page = 1): Promise<Paged<Listed>> {
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(orders)
+    .innerJoin(user, eq(user.id, orders.customerId))
+    .where(where);
+  const { limit, offset, ...window } = pageWindow(page, total);
+  return { rows: await listOrders(where, order, { limit, offset }), total, ...window };
+}
+
+const newestFirst = [desc(orders.createdAt), desc(orders.number)];
+
+const withCustomer = ({ order, customerName, waitingSince }: Listed): PlanetOrderRow => ({
+  ...order,
+  customerName,
+  waitingSince,
+});
 
 async function loadOrder(
   scope: SQL | undefined,
@@ -293,13 +332,18 @@ async function loadOrder(
   };
 }
 
-export async function listMyOrders(): Promise<OrderListRow[]> {
+export async function listMyOrders(input: OrderListInput = {}): Promise<Paged<OrderListRow>> {
   const customer = await requireRole("customer");
-  const rows = await listOrders(eq(orders.customerId, customer.id), [
-    desc(orders.createdAt),
-    desc(orders.number),
-  ]);
-  return rows.map((row) => row.order);
+  const paged = await pageOrders(
+    and(
+      eq(orders.customerId, customer.id),
+      input.status ? eq(orders.status, input.status) : undefined,
+      matchesSearch(input.q, false),
+    ),
+    newestFirst,
+    input.page,
+  );
+  return { ...paged, rows: paged.rows.map((row) => row.order) };
 }
 
 export async function getMyOrder(id: string): Promise<OrderDetail> {
@@ -347,13 +391,18 @@ export async function listQueue(): Promise<QueueOrder[]> {
   }));
 }
 
-export async function listPlanetOrders(): Promise<PlanetOrderRow[]> {
+export async function listPlanetOrders(input: OrderListInput = {}): Promise<Paged<PlanetOrderRow>> {
   const manager = await requireManagerPlanet();
-  const rows = await listOrders(eq(orders.planetId, manager.planetId), [
-    desc(orders.createdAt),
-    desc(orders.number),
-  ]);
-  return rows.map(({ order, customerName, waitingSince }) => ({ ...order, customerName, waitingSince }));
+  const paged = await pageOrders(
+    and(
+      eq(orders.planetId, manager.planetId),
+      input.status ? eq(orders.status, input.status) : undefined,
+      matchesSearch(input.q, true),
+    ),
+    newestFirst,
+    input.page,
+  );
+  return { ...paged, rows: paged.rows.map(withCustomer) };
 }
 
 export async function getPlanetOrder(id: string): Promise<PlanetOrderDetail> {
@@ -412,22 +461,23 @@ export async function rejectOrder(id: string, reason: string): Promise<void> {
   await decide(id, { status: "REJECTED", reason: text });
 }
 
-export async function listAllOrders(filter: OrderFilter = {}): Promise<PlanetOrderRow[]> {
+export async function listAllOrders(filter: OrderFilter = {}): Promise<Paged<PlanetOrderRow>> {
   await requireRole("admiral");
-  const rows = await listOrders(
+  const paged = await pageOrders(
     and(
       filter.status ? eq(orders.status, filter.status) : undefined,
       filter.planetId && isUuid(filter.planetId) ? eq(orders.planetId, filter.planetId) : undefined,
       filter.overdue ? overdueOrders : undefined,
+      matchesSearch(filter.q, true),
     ),
     [
       // Longest waiting first. Orders that do not wait come after, newest first.
       ...(filter.sort === "waiting" ? [sql`${waitingStart} asc nulls last`] : []),
-      desc(orders.createdAt),
-      desc(orders.number),
+      ...newestFirst,
     ],
+    filter.page,
   );
-  return rows.map(({ order, customerName, waitingSince }) => ({ ...order, customerName, waitingSince }));
+  return { ...paged, rows: paged.rows.map(withCustomer) };
 }
 
 export async function getAnyOrder(id: string): Promise<AdmiralOrderDetail> {

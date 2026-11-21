@@ -59,7 +59,7 @@ Messages:
 | Function | Returns | Throws |
 |---|---|---|
 | `placeOrder(input)` | `{ id, number }` | `INVALID`, `CONFLICT` |
-| `listMyOrders({ page, q, status })` | Paged `[{ id, number, destination, totalUnits, totalCents, status, createdAt }]` | — |
+| `listMyOrders({ page, q, status })` | `{ rows, total, page, pageCount }` of `[{ id, number, destination, totalUnits, totalCents, status, createdAt }]`, newest first, 20 per page. `q` matches the order code only | — |
 | `getMyOrder(id)` | Order detail (below) | `NOT_FOUND` |
 
 **Manager** (always own planet, never cost or profit)
@@ -69,14 +69,14 @@ Messages:
 | `listQueue()` | `[{ id, number, customerName, division, items, totalUnits, totalCents, createdAt, waitingSince }]`, oldest first | — |
 | `acceptOrder(id)` | — | `NOT_FOUND`, `CONFLICT` |
 | `rejectOrder(id, reason)` | — | `NOT_FOUND`, `CONFLICT` |
-| `listPlanetOrders({ page, q, status })` | Paged list | — |
+| `listPlanetOrders({ page, q, status })` | Paged list, newest first. `q` matches the order code or the customer name | — |
 | `getPlanetOrder(id)` | Order detail without cost | `NOT_FOUND` |
 
 **Admiral** (read-only)
 
 | Function | Returns | Throws |
 |---|---|---|
-| `listAllOrders({ status, planetId, overdue, sort })` | Every order with planet, customer and `waitingSince`. `overdue` keeps orders waiting over 3 days. `sort: "waiting"` puts the longest waiting first. Paging and search come in Phase 4 | — |
+| `listAllOrders({ page, q, status, planetId, overdue, sort })` | Paged list of every order with planet, customer and `waitingSince`. `q` matches the order code or the customer name. `overdue` keeps orders waiting over 3 days. `sort: "waiting"` puts the longest waiting first | — |
 | `getAnyOrder(id)` | Order detail plus making cost per line, profit, and the actor of each timeline step | `NOT_FOUND` |
 
 **Order detail fields**

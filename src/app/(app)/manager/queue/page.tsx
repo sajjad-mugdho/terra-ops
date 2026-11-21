@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { requirePageRole } from "@/features/auth/guards";
 import { QueueCard } from "@/features/orders/components/queue-card";
 import { listQueue } from "@/features/orders/service";
 import { OVERDUE_DAYS, waitingOf } from "@/features/orders/waiting";
+import { formatUtcTime } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Order queue" };
 
@@ -19,6 +21,7 @@ export default async function ManagerQueuePage() {
   return (
     <>
       <PageHeader title="Order queue" description="New orders for your planet wait here for a decision. Oldest first." />
+      <AutoRefresh updatedAt={formatUtcTime(now)} />
       {queue.length === 0 ? (
         <EmptyState title="No orders waiting" description="When a customer orders to your planet, it appears here." />
       ) : (

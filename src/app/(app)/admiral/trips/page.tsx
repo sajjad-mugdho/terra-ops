@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ListFilters } from "@/components/list-filters";
 import { EmptyState, PageHeader } from "@/components/page-header";
-import { SelectFilters } from "@/components/select-filters";
+import { Pagination } from "@/components/pagination";
+import { Button } from "@/components/ui/button";
 import { requirePageRole } from "@/features/auth/guards";
 import { listPlanetsForAdmiral } from "@/features/settings/service";
 import { TripTable } from "@/features/trips/components/trip-table";
 import { listAllTrips } from "@/features/trips/service";
 import { parseTripStatus, TRIP_STATUSES, tripLabel } from "@/features/trips/status";
+import { parsePage } from "@/lib/pagination";
+import { parseSearch } from "@/lib/search";
 
 export const metadata: Metadata = { title: "Trips" };
+
+const PATH = "/admiral/trips";
 
 export default async function AdmiralTripsPage({ searchParams }: PageProps<"/admiral/trips">) {
   await requirePageRole("admiral");
@@ -15,7 +22,9 @@ export default async function AdmiralTripsPage({ searchParams }: PageProps<"/adm
   const status = parseTripStatus(params.status);
   const planets = await listPlanetsForAdmiral();
   const planetId = planets.find((planet) => planet.id === params.planet)?.id;
-  const trips = await listAllTrips({ status, planetId });
+  const q = parseSearch(params.q);
+  const filtered = q !== undefined || status !== undefined || planetId !== undefined;
+  const trips = await listAllTrips({ page: parsePage(params.page), q, status, planetId });
 
   return (
     <>
@@ -23,8 +32,9 @@ export default async function AdmiralTripsPage({ searchParams }: PageProps<"/adm
         title="Trips"
         description="Every trip of every captain. Read-only. Earnings and profit belong to the captain, not the company."
       />
-      <SelectFilters
-        path="/admiral/trips"
+      <ListFilters
+        path={PATH}
+        search={{ label: "Search by trip code", placeholder: "TRP-101", value: q ?? "" }}
         selects={[
           {
             name: "status",
@@ -40,10 +50,19 @@ export default async function AdmiralTripsPage({ searchParams }: PageProps<"/adm
           },
         ]}
       />
-      {trips.length === 0 ? (
-        <EmptyState title="No trips found" description="No trip matches these filters." />
+      {trips.total === 0 && !filtered ? (
+        <EmptyState title="No trips yet" description="Trips of every captain appear here." />
+      ) : trips.total === 0 ? (
+        <EmptyState title="No trips match" description="No trip matches this search and these filters.">
+          <Button variant="outline" nativeButton={false} render={<Link href={PATH} />}>
+            Clear
+          </Button>
+        </EmptyState>
       ) : (
-        <TripTable rows={trips} basePath="/admiral/trips" />
+        <>
+          <TripTable rows={trips.rows} basePath={PATH} />
+          <Pagination path={PATH} params={{ q, status, planet: planetId }} {...trips} one="trip" many="trips" />
+        </>
       )}
     </>
   );

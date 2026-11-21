@@ -5,6 +5,7 @@ import {
   eventLabel,
   ORDER_STATUSES,
   ORDER_STEPS,
+  isFinalStatus,
   orderCode,
   orderTone,
   type OrderStatus,
@@ -96,6 +97,25 @@ describe("labels", () => {
 
   it("formats the order code", () => {
     expect(orderCode(1001)).toBe("ORD-1001");
+  });
+});
+
+describe("isFinalStatus", () => {
+  it.each(["DELIVERED", "REJECTED"] as const)("is true for %s", (status) => {
+    expect(isFinalStatus(status)).toBe(true);
+  });
+
+  it.each(ORDER_STATUSES.filter((status) => status !== "DELIVERED" && status !== "REJECTED"))(
+    "is false for %s",
+    (status) => {
+      expect(isFinalStatus(status)).toBe(false);
+    },
+  );
+
+  it("agrees with the status machine: a final status leads nowhere", () => {
+    for (const from of ORDER_STATUSES) {
+      expect(isFinalStatus(from)).toBe(ORDER_STATUSES.every((to) => !canTransition(from, to)));
+    }
   });
 });
 

@@ -133,6 +133,11 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D48 | Expected profit DTO | `getMyOpenTrip` returns `OpenTrip`: `TripDetail` plus earnings, expected profit and units to break even. `TripDetail` itself stays without money (D44). Earnings use each order's frozen charge. The units still needed use the planet's delivery charge of today and the space left on the ship |
 | D49 | Who sees waiting time | Managers (queue and planet orders), captains (available orders) and the Admiral (orders list, pipeline, "Waiting too long" card). Customer DTOs carry no waiting field. The text is worked out on the server at request time and is not live until auto-refresh in Phase 4 |
 | D50 | Loss made visible | A trip with negative profit is red and labelled in the trip tables ("Loss" or "Expected loss"), has a banner on its detail page for the captain and the Admiral, and a warning above "Mark as loaded". Loading it stays allowed |
+| D51 | Paged lists | C10 used as proposed: 20 rows. Customer orders, manager orders, captain trips, Admiral orders and Admiral trips return `{ rows, total, page, pageCount }` from one count query and one page query. Newest first with the number as tie-breaker. A bad `page` is page 1, a page past the end is the last page. The queue and the captain's available orders are not paged. This ends D40 and the list part of D45 |
+| D52 | Search | `q` is trimmed and cut at 100 characters, and `%`, `_` and `\` match themselves. It is matched without case against the code as shown ("ORD-1001", "TRP-101"), so "1001" and "ord-10" both work. Customers search the code only. Managers and the Admiral also search the customer name. Trips are searched by code only. The scope condition of the role is always in the same query |
+| D53 | One filter form | `ListFilters` is a Server Component with a plain GET form. It replaces `SelectFilters`. It sends no `page`, so a new filter starts at page 1. "Clear" shows only when a filter is set |
+| D54 | Auto-refresh details | `AutoRefresh` is on three pages only: customer tracking until the order is DELIVERED or REJECTED, the manager queue, and the captain's trip while it is PLANNING. The timer logic is `lib/polling` (no React), so it has unit tests. "Updated <time> UTC" is the server time of the last render, so it stands still while the network is down |
+| D55 | Captain trip list | "Trip history" on `/captain/trips` lists every own trip, the open one too, with a status filter. The "Expected" box reads the open trip from `getMyOpenTrip` and no longer from the list, because the list is paged |
 
 ## Changes vs project.md
 
@@ -158,14 +163,28 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | 1 Order flow | Slices 1.1 to 1.6 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 2 Money and reports | Slices 2.1 to 2.7 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 3 Client pains | Slices 3.1 and 3.2 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
-| 4 to 6 | Not started |
+| 4 Usability | Slices 4.1 to 4.3 done locally and in CI. The two-browser check on the live URL waits for slice 0.6 |
+| 5 to 6 | Not started |
 
 ## Open questions
 
-- Confirmations C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled, C5 and C6 are used as proposed in D41 and D46).
+- Confirmations C8 and C9 in `plan.md` §15 (C1 to C4 and C7 are settled, C5, C6 and C10 are used as proposed in D41, D46 and D51).
 - Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
 
 ## Changelog
+
+### 2026-11-22 · Phase 4, usability
+
+- 4.1 Auto-refresh: `components/auto-refresh` calls `router.refresh()` every 10 seconds while the tab is visible and shows "Updated <time> UTC". It is on the customer tracking page until the order is DELIVERED or REJECTED, on the manager queue, and on the captain's trip while it is PLANNING. No other page polls. The timer is `lib/polling`.
+- 4.2 Pagination: `lib/pagination` and `components/pagination`. Customer orders, manager orders, captain trips, Admiral orders and Admiral trips show 20 rows, the total count, and "Previous", "Page x of y", "Next" as real links. The services return `{ rows, total, page, pageCount }`.
+- 4.3 Search and filters: `lib/search` and `components/list-filters` (replaces `select-filters`). Search by order code for everyone, also by customer name for managers and the Admiral, by trip code on the Admiral's trips. Status filter on every list, also on the captain's trips. "Clear" resets everything. A search with no result shows "No orders match" with a Clear button.
+- New decisions D51 to D55. C10 is settled (20 rows). No schema change, no new action.
+- `/captain/trips` now lists the open trip in "Trip history" too (D55).
+- Fixed a test that failed the CI run of Phase 3 once: the wrong-password test started two sign-ins at once and awaited them one by one, so the second rejection could count as unhandled.
+- Changed tests: every call of the five list functions now reads `.rows`.
+- 998 automated tests (885 before). New: page parsing, page windows and page links, search text and LIKE escaping, the polling timer (hidden tab, visible again, stop, a failed tick), `isFinalStatus`, `formatUtcTime`, and service tests for 0, 20, 21 and 45 rows, no row repeated or missing, the number as tie-breaker, a page past the end, code and name search per role, search with status and planet, `%`, `_`, quotes, SQL text, spaces, long text, and scope kept for each role.
+- Checked in a headless browser against a production build with the seeded data, 35 checks: a manager accepts an order in one browser and the customer's tracking page in another shows "Accepted by planet" about 5 seconds later without a reload, the order leaves a second manager's queue, the reject dialog keeps its typed text through a refresh, no request while the tab is hidden and one right away when it is visible again, no polling on a delivered order, on the lists, or on a LOADED or LANDED trip, the PLANNING trip refreshes, search, Clear, the back button, page 2 of the Admiral's orders, a filter returning to page 1, and no sideways page scroll at 375px.
+- Not done: the two-browser check on the live URL (waits for slice 0.6). Not run in a browser: a session that expires while polling, and a network that goes offline.
 
 ### 2026-11-22 · Phase 3, client pains
 

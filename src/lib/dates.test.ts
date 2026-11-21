@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, formatDuration, formatUtc } from "./dates";
+import { addDays, formatDuration, formatUtc, formatUtcTime } from "./dates";
 
 const at = (iso: string) => new Date(iso);
 
@@ -7,6 +7,14 @@ describe("formatUtc", () => {
   it("always shows UTC, whatever the machine time zone", () => {
     expect(formatUtc(at("2026-11-21T14:05:00Z"))).toBe("21 Nov 2026, 14:05 UTC");
     expect(formatUtc(at("2026-01-01T00:00:00+06:00"))).toBe("31 Dec 2025, 18:00 UTC");
+  });
+});
+
+describe("formatUtcTime", () => {
+  it("shows the time of day in UTC with seconds, labelled", () => {
+    expect(formatUtcTime(at("2026-11-21T14:05:09Z"))).toBe("14:05:09 UTC");
+    expect(formatUtcTime(at("2026-01-01T00:00:00+06:00"))).toBe("18:00:00 UTC");
+    expect(formatUtcTime(at("2026-11-21T00:00:00Z"))).toBe("00:00:00 UTC");
   });
 });
 

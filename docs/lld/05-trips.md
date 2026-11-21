@@ -84,10 +84,10 @@ Delivery actions also revalidate the customer's tracking page and the reports.
 
 | Function | Role | Returns |
 |---|---|---|
-| `listMyTrips()` | Captain | Own trips with units, earnings, fuel, profit. Paging comes in Phase 4 |
+| `listMyTrips({ page, status })` | Captain | `{ rows, total, page, pageCount }` of own trips with units, earnings, fuel, profit. Newest first, 20 per page, open trip included |
 | `getMyTrip(id)` | Captain | Trip detail |
 | `getMyTripRow(id)` | Captain | Earnings, fuel and profit of one own trip (D44) |
-| `listAllTrips({ status, planetId })` | Admiral | Every trip with captain name. Paging and search come in Phase 4 |
+| `listAllTrips({ page, q, status, planetId })` | Admiral | Paged list of every trip with captain name. `q` matches the trip code |
 | `getAnyTrip(id)` | Admiral | Trip detail with captain name, earnings and profit |
 
 **Trip detail fields**

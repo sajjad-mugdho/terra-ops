@@ -278,7 +278,7 @@ describe("Admiral dashboard on a known set", () => {
       switchTo(ADMIRAL);
       const mars = (await getPlanetProfitSummary(around())).find((row) => row.planet === "Mars");
       switchTo(CAPTAIN);
-      const flown = (await listMyTrips()).find((trip) => trip.status === "COMPLETED");
+      const flown = ((await listMyTrips()).rows).find((trip) => trip.status === "COMPLETED");
 
       expect(total.productAmountCents).toBe(mars?.revenueCents);
       expect(total.units).toBe(mars?.units);
@@ -410,7 +410,7 @@ describe("getMyEarnings", () => {
       fuelCents: 8000,
       profitCents: 3500,
     });
-    expect((await listMyTrips())[0]).toMatchObject({
+    expect(((await listMyTrips()).rows)[0]).toMatchObject({
       status: "COMPLETED",
       totalUnits: 5,
       earningsCents: 2500,
@@ -461,7 +461,7 @@ describe("orders waiting too long", () => {
     await acceptedWater(2);
     switchTo(ADMIRAL);
     expect(await getOverdueCount()).toEqual({ count: 0 });
-    expect(await listAllOrders({ overdue: true })).toEqual([]);
+    expect((await listAllOrders({ overdue: true })).rows).toEqual([]);
   });
 
   it("counts exactly the orders of the filtered list", async () => {
@@ -487,7 +487,7 @@ describe("orders waiting too long", () => {
     await backdate(venus.id, 8 * DAY_MINUTES);
 
     switchTo(ADMIRAL);
-    const list = await listAllOrders({ overdue: true });
+    const list = (await listAllOrders({ overdue: true })).rows;
     expect(list.map((order) => order.id).sort()).toEqual([placedLong.id, unpicked.id, venus.id].sort());
     expect(await getOverdueCount()).toEqual({ count: list.length });
   });

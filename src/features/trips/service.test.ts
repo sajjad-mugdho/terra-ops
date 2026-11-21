@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { orders, planets, trips } from "@/db/schema";
@@ -893,7 +893,7 @@ describe("trip history and earnings", () => {
     await flyTrip(CAPTAIN, await planTrip(CAPTAIN, "Mars", [(await acceptedWater(5)).id]));
 
     switchTo(CAPTAIN);
-    const list = await listMyTrips();
+    const list = (await listMyTrips()).rows;
     expect(list.map((trip) => trip.number)).toEqual([102, 101]);
     expect(list[1]).toMatchObject({
       planet: "Mars",
@@ -913,7 +913,7 @@ describe("trip history and earnings", () => {
     await cancelTrip(await planTrip(CAPTAIN, "Mars", [order.id]));
     await planTrip(CAPTAIN, "Mars", [order.id]);
 
-    const [open, cancelled] = await listMyTrips();
+    const [open, cancelled] = (await listMyTrips()).rows;
     expect(cancelled).toMatchObject({ status: "CANCELLED", totalUnits: 0, earningsCents: 0, profitCents: 0 });
     expect(open).toMatchObject({
       status: "PLANNING",
@@ -940,7 +940,7 @@ describe("trip history and earnings", () => {
     const tripId = await planTrip(CAPTAIN, "Mars", [(await acceptedWater(3)).id]);
 
     switchTo(OTHER_CAPTAIN);
-    expect(await listMyTrips()).toEqual([]);
+    expect((await listMyTrips()).rows).toEqual([]);
     await expect(getMyTripRow(tripId)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(getMyTrip(tripId)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(getMyTripRow("abc")).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -948,7 +948,7 @@ describe("trip history and earnings", () => {
 
   it("gives the captain no price, making cost, customer or captain name", async () => {
     const tripId = await planTrip(CAPTAIN, "Mars", [(await acceptedWater(3)).id]);
-    const keys = deepKeys([await listMyTrips(), await getMyTripRow(tripId)]);
+    const keys = deepKeys([(await listMyTrips()).rows, await getMyTripRow(tripId)]);
     expect(keys.filter((key) => /price|makingcost|customer|captain/i.test(key))).toEqual([]);
   });
 
@@ -972,7 +972,7 @@ describe("Admiral trips", () => {
   it("lists every trip of every captain with captain, planet, units and money", async () => {
     await twoTrips();
     switchTo(ADMIRAL);
-    const list = await listAllTrips();
+    const list = (await listAllTrips()).rows;
 
     expect(list).toHaveLength(2);
     expect(list[0]).toMatchObject({
@@ -997,10 +997,10 @@ describe("Admiral trips", () => {
   it("filters by status and by planet, and ignores a bad planet ID", async () => {
     await twoTrips();
     switchTo(ADMIRAL);
-    expect((await listAllTrips({ status: "COMPLETED" })).map((trip) => trip.planet)).toEqual(["Mars"]);
-    expect((await listAllTrips({ planetId: await planetId("Venus") })).map((trip) => trip.planet)).toEqual(["Venus"]);
-    expect(await listAllTrips({ status: "CANCELLED" })).toEqual([]);
-    expect(await listAllTrips({ planetId: "nope" })).toHaveLength(2);
+    expect(((await listAllTrips({ status: "COMPLETED" })).rows).map((trip) => trip.planet)).toEqual(["Mars"]);
+    expect(((await listAllTrips({ planetId: await planetId("Venus") })).rows).map((trip) => trip.planet)).toEqual(["Venus"]);
+    expect((await listAllTrips({ status: "CANCELLED" })).rows).toEqual([]);
+    expect((await listAllTrips({ planetId: "nope" })).rows).toHaveLength(2);
   });
 
   it("reads any trip with its orders, stops, captain and profit", async () => {
@@ -1223,5 +1223,149 @@ describe("waiting time for captains", () => {
     await backdate(older.id, 2000, 1500);
     const tripId = await marsTrip();
     expect((await listAvailableOrders(tripId)).map((order) => order.id)).toEqual([older.id, newer.id]);
+  });
+});
+
+// A trip that was started and cancelled right away: the quickest way to a long trip history.
+async function cancelledTrips(captain: string, count: number, planet = "Mars") {
+  const ids: string[] = [];
+  for (let index = 0; index < count; index++) {
+    const id = await planTrip(captain, planet, []);
+    await cancelTrip(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+describe("trip list pagination", () => {
+  it("returns an empty first page for a captain without trips", async () => {
+    switchTo(CAPTAIN);
+    expect(await listMyTrips({ page: 4 })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+    switchTo(ADMIRAL);
+    expect(await listAllTrips({ page: 4 })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+  });
+
+  it("keeps exactly 20 trips on one page", async () => {
+    await cancelledTrips(CAPTAIN, 20);
+    const list = await listMyTrips();
+    expect(list).toMatchObject({ total: 20, page: 1, pageCount: 1 });
+    expect(list.rows).toHaveLength(20);
+    expect(await listMyTrips({ page: 2 })).toEqual(list);
+  });
+
+  it("puts the 21st trip on a second page, with no trip repeated or missing", async () => {
+    const ids = await cancelledTrips(CAPTAIN, 21);
+
+    const first = await listMyTrips({ page: 1 });
+    const second = await listMyTrips({ page: 2 });
+    expect(first).toMatchObject({ total: 21, page: 1, pageCount: 2 });
+    expect(second).toMatchObject({ total: 21, page: 2, pageCount: 2 });
+    expect(first.rows).toHaveLength(20);
+    expect([...first.rows, ...second.rows].map((trip) => trip.id)).toEqual([...ids].reverse());
+    expect(await listMyTrips({ page: 999 })).toEqual(second);
+    expect(await listMyTrips({ page: 0 })).toEqual(first);
+  });
+
+  it("uses the trip number as tie-breaker when trips share one time", async () => {
+    await cancelledTrips(CAPTAIN, 21);
+    // created_at is frozen by a trigger. Only a test may step around it.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`alter table trips disable trigger trips_frozen_columns`);
+      await tx.execute(sql`update trips set created_at = '2026-01-01T00:00:00Z'`);
+      await tx.execute(sql`alter table trips enable trigger trips_frozen_columns`);
+    });
+
+    const numbers = [...(await listMyTrips({ page: 1 })).rows, ...(await listMyTrips({ page: 2 })).rows].map(
+      (trip) => trip.number,
+    );
+    expect(numbers).toEqual(Array.from({ length: 21 }, (_, index) => 121 - index));
+  });
+
+  it("pages the Admiral's list over every captain", async () => {
+    await cancelledTrips(CAPTAIN, 12);
+    await cancelledTrips(OTHER_CAPTAIN, 11, "Venus");
+
+    switchTo(ADMIRAL);
+    const first = await listAllTrips();
+    const second = await listAllTrips({ page: 2 });
+    expect(first).toMatchObject({ total: 23, page: 1, pageCount: 2 });
+    expect(second.rows).toHaveLength(3);
+    expect(new Set([...first.rows, ...second.rows].map((trip) => trip.id)).size).toBe(23);
+    expect(await listAllTrips({ planetId: await planetId("Venus"), page: 2 })).toMatchObject({
+      total: 11,
+      page: 1,
+      pageCount: 1,
+    });
+  });
+});
+
+describe("trip search and filters", () => {
+  // Captain 1: TRP-101 completed and TRP-102 planning, both Mars. Captain 2: TRP-103 cancelled, Venus.
+  async function tripSet() {
+    await flyTrip(CAPTAIN, await planTrip(CAPTAIN, "Mars", [(await acceptedWater(2)).id]));
+    await planTrip(CAPTAIN, "Mars", [(await acceptedWater(3)).id]);
+    await cancelledTrips(OTHER_CAPTAIN, 1, "Venus");
+  }
+
+  const numbers = (list: { rows: { number: number }[] }) => list.rows.map((trip) => trip.number);
+
+  it("filters a captain's own trips by status", async () => {
+    await tripSet();
+    switchTo(CAPTAIN);
+    expect(numbers(await listMyTrips())).toEqual([102, 101]);
+    expect(numbers(await listMyTrips({ status: "COMPLETED" }))).toEqual([101]);
+    expect(numbers(await listMyTrips({ status: "PLANNING" }))).toEqual([102]);
+    // TRP-103 is cancelled, but it belongs to another captain.
+    expect(await listMyTrips({ status: "CANCELLED" })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+
+    switchTo(OTHER_CAPTAIN);
+    expect(numbers(await listMyTrips({ status: "CANCELLED" }))).toEqual([103]);
+    expect(numbers(await listMyTrips({ status: "COMPLETED" }))).toEqual([]);
+  });
+
+  it("lets the Admiral find a trip by its full or partial code", async () => {
+    await tripSet();
+    switchTo(ADMIRAL);
+    expect(numbers(await listAllTrips({ q: "TRP-102" }))).toEqual([102]);
+    expect(numbers(await listAllTrips({ q: "trp-103" }))).toEqual([103]);
+    expect(numbers(await listAllTrips({ q: "101" }))).toEqual([101]);
+    expect(numbers(await listAllTrips({ q: " TRP-10 " }))).toEqual([103, 102, 101]);
+    expect(await listAllTrips({ q: "TRP-999" })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+  });
+
+  it("combines trip code, status and planet", async () => {
+    await tripSet();
+    switchTo(ADMIRAL);
+    const mars = await planetId("Mars");
+    expect(numbers(await listAllTrips({ q: "TRP-10", status: "COMPLETED" }))).toEqual([101]);
+    expect(numbers(await listAllTrips({ q: "TRP-10", planetId: mars }))).toEqual([102, 101]);
+    expect(numbers(await listAllTrips({ q: "103", planetId: mars }))).toEqual([]);
+    expect(numbers(await listAllTrips({ q: "102", status: "PLANNING", planetId: mars }))).toEqual([102]);
+  });
+
+  it("treats wildcards, spaces, quotes and long text as plain text", async () => {
+    await tripSet();
+    switchTo(ADMIRAL);
+    for (const q of ["%", "_", "TRP_101", "TRP%", "' OR '1'='1", "'; drop table trips; --", "x".repeat(5000)]) {
+      expect(numbers(await listAllTrips({ q }))).toEqual([]);
+    }
+    expect(numbers(await listAllTrips({ q: "   " }))).toEqual([103, 102, 101]);
+    expect(numbers(await listAllTrips({ q: `${"TRP-101".padEnd(100)}zzz` }))).toEqual([101]);
+  });
+
+  it("does not search by captain name", async () => {
+    await tripSet();
+    switchTo(ADMIRAL);
+    expect(numbers(await listAllTrips({ q: "Captain" }))).toEqual([]);
+  });
+
+  it("keeps the role checks with every parameter", async () => {
+    switchTo(CAPTAIN);
+    await expect(listAllTrips({ q: "TRP", page: 2 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    switchTo(ADMIRAL);
+    await expect(listMyTrips({ status: "COMPLETED", page: 2 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    actAsNobody();
+    await expect(listMyTrips({ page: 2 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(listAllTrips({ q: "TRP" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

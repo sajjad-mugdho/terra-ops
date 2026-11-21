@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { orderEvents, orderItems, orders, planets, products } from "@/db/schema";
+import { orderEvents, orderItems, orders, planets, products, user } from "@/db/schema";
 import { seedReference } from "@/seed/reference";
 import {
   acceptAs,
@@ -269,7 +269,7 @@ describe("placeOrder", () => {
       const second = await placeOrder(input);
       expect(second.id).not.toBe(first.id);
       await expect(getMyOrder(first.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
-      expect((await listMyOrders()).map((order) => order.id)).toEqual([second.id]);
+      expect(((await listMyOrders()).rows).map((order) => order.id)).toEqual([second.id]);
     });
   });
 
@@ -298,7 +298,7 @@ describe("customer reads", () => {
     const foreign = await placeOrder(await waterOrder(4));
 
     switchTo(CUSTOMER);
-    const mine = await listMyOrders();
+    const mine = (await listMyOrders()).rows;
     expect(mine.map((order) => order.id)).toEqual([second.id, first.id]);
     expect(mine[0]).toMatchObject({
       number: second.number,
@@ -310,12 +310,12 @@ describe("customer reads", () => {
     });
 
     switchTo(OTHER_CUSTOMER);
-    expect((await listMyOrders()).map((order) => order.id)).toEqual([foreign.id]);
+    expect(((await listMyOrders()).rows).map((order) => order.id)).toEqual([foreign.id]);
   });
 
   it("returns an empty list for a customer with no orders", async () => {
     switchTo(CUSTOMER);
-    expect(await listMyOrders()).toEqual([]);
+    expect((await listMyOrders()).rows).toEqual([]);
   });
 
   it("shows the detail with lines, totals and the timeline", async () => {
@@ -369,7 +369,7 @@ describe("customer reads", () => {
       const order = await getMyOrder(placed.id);
       expect(order.totalCents).toBe(4500);
       expect(order.items[0]).toMatchObject({ unitPriceCents: 1000, unitDeliveryChargeCents: 500 });
-      expect((await listMyOrders())[0].totalCents).toBe(4500);
+      expect(((await listMyOrders()).rows)[0].totalCents).toBe(4500);
     } finally {
       await db.update(products).set({ priceCents: 1000 }).where(eq(products.name, "Water"));
       await db.update(planets).set({ deliveryChargeCents: 500 }).where(eq(planets.name, "Mars"));
@@ -378,7 +378,7 @@ describe("customer reads", () => {
 
   it("never returns making cost or profit to the customer", async () => {
     const placed = await placeWater(3);
-    const keys = [...deepKeys(await getMyOrder(placed.id)), ...deepKeys(await listMyOrders())];
+    const keys = [...deepKeys(await getMyOrder(placed.id)), ...deepKeys((await listMyOrders()).rows)];
     expect(keys.filter((key) => HIDDEN_FROM_STAFF.test(key))).toEqual([]);
     expect(keys).not.toContain("customerName");
   });
@@ -575,7 +575,7 @@ describe("manager reads", () => {
     await acceptOrder(accepted.id);
     await rejectOrder(rejected.id, "Out of stock");
 
-    const all = await listPlanetOrders();
+    const all = (await listPlanetOrders()).rows;
     expect(all.map((order) => [order.id, order.status])).toEqual([
       [rejected.id, "REJECTED"],
       [accepted.id, "ACCEPTED"],
@@ -598,7 +598,7 @@ describe("manager reads", () => {
     await expect(getPlanetOrder(placed.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(getPlanetOrder(randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(getPlanetOrder("abc")).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(await listPlanetOrders()).toEqual([]);
+    expect((await listPlanetOrders()).rows).toEqual([]);
   });
 
   it("never returns making cost or profit, at any depth", async () => {
@@ -606,7 +606,7 @@ describe("manager reads", () => {
     switchTo(MARS_MANAGER);
     const keys = [
       ...deepKeys(await listQueue()),
-      ...deepKeys(await listPlanetOrders()),
+      ...deepKeys((await listPlanetOrders()).rows),
       ...deepKeys(await getPlanetOrder(placed.id)),
     ];
     expect(keys.length).toBeGreaterThan(20);
@@ -634,7 +634,7 @@ describe("Admiral orders", () => {
   it("lists every order of every planet and customer", async () => {
     await threeOrders();
     switchTo(ADMIRAL);
-    const list = await listAllOrders();
+    const list = (await listAllOrders()).rows;
 
     expect(list.map((order) => [order.destination.planet, order.customerName, order.totalUnits, order.status, order.totalCents])).toEqual([
       ["Mars", "Mira Chen", 1, "REJECTED", 1500],
@@ -646,11 +646,11 @@ describe("Admiral orders", () => {
   it("filters by status and by planet, and ignores a bad planet ID", async () => {
     await threeOrders();
     switchTo(ADMIRAL);
-    expect(await listAllOrders({ status: "REJECTED" })).toHaveLength(1);
-    expect(await listAllOrders({ planetId: await planetId("Venus") })).toHaveLength(1);
-    expect(await listAllOrders({ status: "PLACED", planetId: await planetId("Mars") })).toHaveLength(1);
-    expect(await listAllOrders({ status: "DELIVERED" })).toEqual([]);
-    expect(await listAllOrders({ planetId: "nope" })).toHaveLength(3);
+    expect((await listAllOrders({ status: "REJECTED" })).rows).toHaveLength(1);
+    expect((await listAllOrders({ planetId: await planetId("Venus") })).rows).toHaveLength(1);
+    expect((await listAllOrders({ status: "PLACED", planetId: await planetId("Mars") })).rows).toHaveLength(1);
+    expect((await listAllOrders({ status: "DELIVERED" })).rows).toEqual([]);
+    expect((await listAllOrders({ planetId: "nope" })).rows).toHaveLength(3);
   });
 
   it("reads any order with making cost, profit and who did each step", async () => {
@@ -752,7 +752,7 @@ describe("waiting time", () => {
     await backdate(accepted.id, 9 * DAY, 4 * DAY);
 
     switchTo(MARS_MANAGER);
-    const list = await listPlanetOrders();
+    const list = (await listPlanetOrders()).rows;
     const since = (id: string) => list.find((order) => order.id === id)?.waitingSince;
     expect(since(placed.id)).toEqual((await row(placed.id)).createdAt);
     expect(since(accepted.id)).toEqual((await row(accepted.id)).acceptedAt);
@@ -770,7 +770,7 @@ describe("waiting time", () => {
     await removeOrderFromTrip(tripId, order.id);
 
     switchTo(MARS_MANAGER);
-    expect((await listPlanetOrders())[0]).toMatchObject({ status: "ACCEPTED", waitingSince: accepted });
+    expect(((await listPlanetOrders()).rows)[0]).toMatchObject({ status: "ACCEPTED", waitingSince: accepted });
   });
 
   it("never shows a manager the waiting orders of another planet", async () => {
@@ -778,14 +778,14 @@ describe("waiting time", () => {
     await backdate(venus.id, 9 * DAY);
     switchTo(MARS_MANAGER);
     expect(await listQueue()).toEqual([]);
-    expect(await listPlanetOrders()).toEqual([]);
+    expect((await listPlanetOrders()).rows).toEqual([]);
   });
 
   it("gives a customer no waiting time at all", async () => {
     const placed = await placeWater(3);
     await backdate(placed.id, 9 * DAY);
     switchTo(CUSTOMER);
-    const keys = [...deepKeys(await getMyOrder(placed.id)), ...deepKeys(await listMyOrders())];
+    const keys = [...deepKeys(await getMyOrder(placed.id)), ...deepKeys((await listMyOrders()).rows)];
     expect(keys.filter((key) => /waiting|overdue/i.test(key))).toEqual([]);
   });
 
@@ -793,7 +793,7 @@ describe("waiting time", () => {
     const placed = await placeWater(3);
     await backdate(placed.id, 9 * DAY);
     switchTo(MARS_MANAGER);
-    const keys = [...deepKeys(await listQueue()), ...deepKeys(await listPlanetOrders())];
+    const keys = [...deepKeys(await listQueue()), ...deepKeys((await listPlanetOrders()).rows)];
     expect(keys).toContain("waitingSince");
     expect(keys.filter((key) => HIDDEN_FROM_STAFF.test(key))).toEqual([]);
   });
@@ -826,23 +826,23 @@ describe("waiting time", () => {
     it("filters to exactly the orders that wait longer than 3 days", async () => {
       const set = await waitingSet();
       switchTo(ADMIRAL);
-      const overdue = await listAllOrders({ overdue: true });
+      const overdue = (await listAllOrders({ overdue: true })).rows;
       expect(overdue.map((order) => order.id).sort()).toEqual([set.placedLong.id, set.unpicked.id].sort());
-      expect(await listAllOrders({ overdue: false })).toHaveLength(7);
+      expect((await listAllOrders({ overdue: false })).rows).toHaveLength(7);
     });
 
     it("combines the overdue filter with status and planet", async () => {
       const set = await waitingSet();
       switchTo(ADMIRAL);
-      expect((await listAllOrders({ overdue: true, status: "ACCEPTED" })).map((order) => order.id)).toEqual([set.unpicked.id]);
-      expect(await listAllOrders({ overdue: true, planetId: await planetId("Venus") })).toEqual([]);
-      expect(await listAllOrders({ overdue: true, status: "DELIVERED" })).toEqual([]);
+      expect(((await listAllOrders({ overdue: true, status: "ACCEPTED" })).rows).map((order) => order.id)).toEqual([set.unpicked.id]);
+      expect((await listAllOrders({ overdue: true, planetId: await planetId("Venus") })).rows).toEqual([]);
+      expect((await listAllOrders({ overdue: true, status: "DELIVERED" })).rows).toEqual([]);
     });
 
     it("sorts by longest waiting first and puts orders that do not wait last", async () => {
       const set = await waitingSet();
       switchTo(ADMIRAL);
-      const sorted = await listAllOrders({ sort: "waiting" });
+      const sorted = (await listAllOrders({ sort: "waiting" })).rows;
       expect(sorted.slice(0, 5).map((order) => order.id)).toEqual([
         set.placedLong.id,
         set.unpicked.id,
@@ -856,14 +856,295 @@ describe("waiting time", () => {
     it("keeps newest first as the default order", async () => {
       const set = await waitingSet();
       switchTo(ADMIRAL);
-      const byNewest = await listAllOrders();
+      const byNewest = (await listAllOrders()).rows;
       expect(byNewest[0].id).toBe(set.venus.id);
-      expect(await listAllOrders({ sort: "newest" })).toEqual(byNewest);
+      expect((await listAllOrders({ sort: "newest" })).rows).toEqual(byNewest);
     });
 
     it.each([CUSTOMER, MARS_MANAGER, CAPTAIN])("keeps the overdue list FORBIDDEN for %s", async (email) => {
       switchTo(email);
       await expect(listAllOrders({ overdue: true, sort: "waiting" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
+  });
+});
+
+async function placeMany(count: number) {
+  const ids: string[] = [];
+  for (let index = 0; index < count; index++) ids.push((await placeWater(1)).id);
+  return ids;
+}
+
+// Every page of a list, one after the other.
+async function allPages<T>(list: (page: number) => Promise<{ rows: T[]; pageCount: number }>) {
+  const first = await list(1);
+  const pages = [first.rows];
+  for (let page = 2; page <= first.pageCount; page++) pages.push((await list(page)).rows);
+  return pages;
+}
+
+describe("pagination", () => {
+  it("returns an empty first page for an empty list", async () => {
+    switchTo(CUSTOMER);
+    expect(await listMyOrders()).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+    switchTo(MARS_MANAGER);
+    expect(await listPlanetOrders({ page: 3 })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+    switchTo(ADMIRAL);
+    expect(await listAllOrders({ page: 3 })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+  });
+
+  it("keeps exactly 20 rows on one page", async () => {
+    await placeMany(20);
+    const list = await listMyOrders();
+    expect(list).toMatchObject({ total: 20, page: 1, pageCount: 1 });
+    expect(list.rows).toHaveLength(20);
+    // There is no page 2, so it shows the last page: page 1.
+    expect(await listMyOrders({ page: 2 })).toEqual(list);
+  });
+
+  it("puts the 21st row on a second page, with no row repeated or missing", async () => {
+    const ids = await placeMany(21);
+
+    const [first, second] = await allPages((page) => listMyOrders({ page }));
+    expect(first).toHaveLength(20);
+    expect(second).toHaveLength(1);
+    expect(await listMyOrders({ page: 2 })).toMatchObject({ total: 21, page: 2, pageCount: 2 });
+    // Newest first: the pages together are every order, in reverse order of placing.
+    expect([...first, ...second].map((order) => order.id)).toEqual([...ids].reverse());
+  });
+
+  it("shows the last page for a page past the end, and page 1 for a bad page", async () => {
+    await placeMany(21);
+    const last = await listMyOrders({ page: 2 });
+    expect(await listMyOrders({ page: 999 })).toEqual(last);
+    expect(await listMyOrders({ page: Number.POSITIVE_INFINITY })).toEqual(last);
+
+    const first = await listMyOrders({ page: 1 });
+    for (const page of [0, -3, Number.NaN]) expect(await listMyOrders({ page })).toEqual(first);
+  });
+
+  it("uses the order number as tie-breaker when orders share one time", async () => {
+    await placeMany(45);
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`alter table orders disable trigger orders_frozen_columns`);
+      await tx.execute(sql`update orders set created_at = '2026-01-01T00:00:00Z'`);
+      await tx.execute(sql`alter table orders enable trigger orders_frozen_columns`);
+    });
+
+    const pages = await allPages((page) => listMyOrders({ page }));
+    expect(pages.map((rows) => rows.length)).toEqual([20, 20, 5]);
+    const numbers = pages.flat().map((order) => order.number);
+    expect(numbers).toEqual(Array.from({ length: 45 }, (_, index) => 1045 - index));
+  });
+
+  it("pages the manager's and the Admiral's lists the same way", async () => {
+    const ids = await placeMany(21);
+    await placeWater(1, await VENUS_D1(), "Venus");
+
+    switchTo(MARS_MANAGER);
+    const planet = await allPages((page) => listPlanetOrders({ page }));
+    expect(planet.map((rows) => rows.length)).toEqual([20, 1]);
+    expect(planet.flat().map((order) => order.id)).toEqual([...ids].reverse());
+    expect((await listPlanetOrders()).total).toBe(21);
+
+    switchTo(ADMIRAL);
+    const all = await allPages((page) => listAllOrders({ page }));
+    expect(all.map((rows) => rows.length)).toEqual([20, 2]);
+    expect(new Set(all.flat().map((order) => order.id)).size).toBe(22);
+    expect(await listAllOrders({ page: 2 })).toMatchObject({ total: 22, page: 2, pageCount: 2 });
+  });
+
+  it("counts and pages only the filtered rows", async () => {
+    const ids = await placeMany(22);
+    switchTo(MARS_MANAGER);
+    await acceptOrder(ids[0]);
+
+    const placed = await listPlanetOrders({ status: "PLACED", page: 2 });
+    expect(placed).toMatchObject({ total: 21, page: 2, pageCount: 2 });
+    expect(placed.rows.map((order) => order.id)).toEqual([ids[1]]);
+    expect(await listPlanetOrders({ status: "ACCEPTED", page: 2 })).toMatchObject({ total: 1, page: 1, pageCount: 1 });
+  });
+
+  it("keeps the waiting sort stable across pages", async () => {
+    const ids = await placeMany(21);
+    switchTo(MARS_MANAGER);
+    await rejectOrder(ids[5], "Out of stock");
+
+    switchTo(ADMIRAL);
+    const pages = await allPages((page) => listAllOrders({ page, sort: "waiting" }));
+    const sorted = pages.flat().map((order) => order.id);
+    // Longest waiting first, and the one order that does not wait comes last.
+    expect(sorted).toEqual([...ids.filter((id) => id !== ids[5]), ids[5]]);
+  });
+});
+
+describe("search and filters", () => {
+  // Mira: ORD-1001 and ORD-1002 on Mars. Jonas: ORD-1003 on Mars, ORD-1004 on Venus.
+  async function searchSet() {
+    const mira1 = await placeWater(1);
+    const mira2 = await placeWater(2);
+    const jonas = await placeItems({ Water: 3 }, await MARS_D7(), OTHER_CUSTOMER);
+    const venus = await placeItems({ Water: 4 }, await VENUS_D1(), OTHER_CUSTOMER);
+    return { mira1, mira2, jonas, venus };
+  }
+
+  const numbers = (list: { rows: { number: number }[] }) => list.rows.map((order) => order.number);
+
+  it("finds an order by its full or partial code, in any case", async () => {
+    await searchSet();
+    switchTo(CUSTOMER);
+    expect(numbers(await listMyOrders({ q: "ORD-1002" }))).toEqual([1002]);
+    expect(numbers(await listMyOrders({ q: "ord-1002" }))).toEqual([1002]);
+    expect(numbers(await listMyOrders({ q: "1002" }))).toEqual([1002]);
+    expect(numbers(await listMyOrders({ q: "D-100" }))).toEqual([1002, 1001]);
+    expect(numbers(await listMyOrders({ q: "  ORD-1001  " }))).toEqual([1001]);
+    expect(await listMyOrders({ q: "ORD-1002" })).toMatchObject({ total: 1, page: 1, pageCount: 1 });
+  });
+
+  it("returns nothing for a search with no match", async () => {
+    await searchSet();
+    switchTo(CUSTOMER);
+    expect(await listMyOrders({ q: "ORD-9999" })).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+  });
+
+  it("never lets a customer search by name or find another customer's order", async () => {
+    await searchSet();
+    switchTo(CUSTOMER);
+    expect(numbers(await listMyOrders({ q: "Mira" }))).toEqual([]);
+    expect(numbers(await listMyOrders({ q: "Jonas" }))).toEqual([]);
+    expect(numbers(await listMyOrders({ q: "ORD-1003" }))).toEqual([]);
+    expect(numbers(await listMyOrders({ q: "ORD" }))).toEqual([1002, 1001]);
+
+    switchTo(OTHER_CUSTOMER);
+    expect(numbers(await listMyOrders({ q: "ORD-1001" }))).toEqual([]);
+    expect(numbers(await listMyOrders({ q: "100" }))).toEqual([1004, 1003]);
+  });
+
+  it("lets a manager search by code or customer name, inside the planet only", async () => {
+    await searchSet();
+    switchTo(MARS_MANAGER);
+    expect(numbers(await listPlanetOrders({ q: "jonas" }))).toEqual([1003]);
+    expect(numbers(await listPlanetOrders({ q: "MIRA CHEN" }))).toEqual([1002, 1001]);
+    expect(numbers(await listPlanetOrders({ q: "ord-1003" }))).toEqual([1003]);
+    // ORD-1004 is a Venus order: its code and its customer do not reach it from Mars.
+    expect(numbers(await listPlanetOrders({ q: "ORD-1004" }))).toEqual([]);
+    expect(numbers(await listPlanetOrders({ q: "Okafor" }))).toEqual([1003]);
+
+    switchTo(VENUS_MANAGER);
+    expect(numbers(await listPlanetOrders({ q: "ORD-1001" }))).toEqual([]);
+    expect(numbers(await listPlanetOrders({ q: "Mira" }))).toEqual([]);
+    expect(numbers(await listPlanetOrders({ q: "Jonas" }))).toEqual([1004]);
+  });
+
+  it("lets the Admiral search every planet by code or customer name", async () => {
+    await searchSet();
+    switchTo(ADMIRAL);
+    expect(numbers(await listAllOrders({ q: "okafor" }))).toEqual([1004, 1003]);
+    expect(numbers(await listAllOrders({ q: "ORD-1004" }))).toEqual([1004]);
+    expect(numbers(await listAllOrders({ q: "Jonas", planetId: await planetId("Venus") }))).toEqual([1004]);
+    expect(numbers(await listAllOrders({ q: "nobody" }))).toEqual([]);
+  });
+
+  it("combines search with status", async () => {
+    const set = await searchSet();
+    await acceptAs(MARS_MANAGER, set.mira1.id);
+
+    expect(numbers(await listPlanetOrders({ q: "Mira", status: "ACCEPTED" }))).toEqual([1001]);
+    expect(numbers(await listPlanetOrders({ q: "Mira", status: "PLACED" }))).toEqual([1002]);
+    expect(numbers(await listPlanetOrders({ q: "Jonas", status: "ACCEPTED" }))).toEqual([]);
+    expect(numbers(await listPlanetOrders({ status: "PLACED" }))).toEqual([1003, 1002]);
+
+    switchTo(CUSTOMER);
+    expect(numbers(await listMyOrders({ status: "ACCEPTED" }))).toEqual([1001]);
+    expect(numbers(await listMyOrders({ q: "1002", status: "ACCEPTED" }))).toEqual([]);
+
+    switchTo(ADMIRAL);
+    expect(numbers(await listAllOrders({ q: "ORD-100", status: "PLACED", planetId: await planetId("Mars") }))).toEqual([1003, 1002]);
+    expect(numbers(await listAllOrders({ q: "Mira", overdue: true }))).toEqual([]);
+  });
+
+  it("treats only spaces as no search", async () => {
+    await searchSet();
+    switchTo(CUSTOMER);
+    expect(numbers(await listMyOrders({ q: "   " }))).toEqual([1002, 1001]);
+    expect(numbers(await listMyOrders({ q: "" }))).toEqual([1002, 1001]);
+  });
+
+  it("treats % and _ as plain text", async () => {
+    await searchSet();
+    switchTo(CUSTOMER);
+    for (const q of ["%", "_", "ORD_1001", "ORD%", "\\"]) expect(numbers(await listMyOrders({ q }))).toEqual([]);
+
+    switchTo(ADMIRAL);
+    for (const q of ["%", "_", "M_ra", "%Chen"]) expect(numbers(await listAllOrders({ q }))).toEqual([]);
+
+    await db.update(user).set({ name: "100%_real \\ Mira" }).where(eq(user.email, CUSTOMER));
+    try {
+      expect(numbers(await listAllOrders({ q: "100%" }))).toEqual([1002, 1001]);
+      expect(numbers(await listAllOrders({ q: "%_real" }))).toEqual([1002, 1001]);
+      expect(numbers(await listAllOrders({ q: "\\ mira" }))).toEqual([1002, 1001]);
+      expect(numbers(await listAllOrders({ q: "100_" }))).toEqual([]);
+    } finally {
+      await db.update(user).set({ name: "Mira Chen" }).where(eq(user.email, CUSTOMER));
+    }
+  });
+
+  it("stays safe with quotes and SQL in the search text", async () => {
+    await searchSet();
+    const attacks = ["' OR '1'='1", "'; drop table orders; --", '"; select 1; --', "\\'", "ORD-1001' --"];
+
+    switchTo(CUSTOMER);
+    for (const q of attacks) expect(numbers(await listMyOrders({ q }))).toEqual([]);
+    switchTo(MARS_MANAGER);
+    for (const q of attacks) expect(numbers(await listPlanetOrders({ q }))).toEqual([]);
+    switchTo(ADMIRAL);
+    for (const q of attacks) expect(numbers(await listAllOrders({ q }))).toEqual([]);
+    expect((await listAllOrders()).total).toBe(4);
+  });
+
+  it("cuts very long search text at 100 characters", async () => {
+    await searchSet();
+    switchTo(ADMIRAL);
+    expect(numbers(await listAllOrders({ q: "x".repeat(5000) }))).toEqual([]);
+    // Only the first 100 characters count: the spaces are trimmed off and the rest is cut.
+    expect(numbers(await listAllOrders({ q: `${"Jonas".padEnd(100)}zzz` }))).toEqual([1004, 1003]);
+  });
+
+  it("searches across pages and starts the count from the matches", async () => {
+    await placeMany(21);
+    await placeItems({ Water: 1 }, await MARS_D7(), OTHER_CUSTOMER);
+
+    switchTo(MARS_MANAGER);
+    expect(await listPlanetOrders({ q: "Mira", page: 2 })).toMatchObject({ total: 21, page: 2, pageCount: 2 });
+    expect(await listPlanetOrders({ q: "Jonas", page: 2 })).toMatchObject({ total: 1, page: 1, pageCount: 1 });
+    // ORD-1001, ORD-1010 to ORD-1019.
+    expect((await listPlanetOrders({ q: "ORD-101" })).total).toBe(10);
+  });
+
+  it("gives a customer no customer name or waiting field, also when searching", async () => {
+    await searchSet();
+    switchTo(CUSTOMER);
+    const keys = deepKeys((await listMyOrders({ q: "ORD", status: "PLACED" })).rows);
+    expect(keys.filter((key) => /customer|waiting|cost|profit/i.test(key))).toEqual([]);
+  });
+
+  it("gives a manager no making cost or profit, also when searching", async () => {
+    await searchSet();
+    switchTo(MARS_MANAGER);
+    const keys = deepKeys((await listPlanetOrders({ q: "Mira" })).rows);
+    expect(keys.filter((key) => /cost|profit/i.test(key))).toEqual([]);
+  });
+
+  it("keeps the role checks with every parameter", async () => {
+    switchTo(MARS_MANAGER);
+    await expect(listMyOrders({ q: "ORD", page: 2 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(listAllOrders({ q: "ORD", page: 2 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    switchTo(CUSTOMER);
+    await expect(listPlanetOrders({ q: "ORD", page: 2 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    switchTo(CAPTAIN);
+    await expect(listMyOrders({ q: "ORD" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    actAsNobody();
+    await expect(listMyOrders({ q: "ORD" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(listPlanetOrders({ status: "PLACED" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(listAllOrders({ page: 2 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

@@ -41,6 +41,11 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   return NEXT[from].includes(to);
 }
 
+// DELIVERED and REJECTED: nothing can happen to the order any more.
+export function isFinalStatus(status: OrderStatus): boolean {
+  return NEXT[status].length === 0;
+}
+
 const LABELS: Record<OrderStatus, string> = {
   PLACED: "Order placed",
   ACCEPTED: "Accepted by planet",
@@ -76,6 +81,8 @@ export function orderTone(status: OrderStatus): Tone {
   return status === "PLACED" ? "neutral" : "info";
 }
 
+export const ORDER_CODE_PREFIX = "ORD-";
+
 export function orderCode(number: number): string {
-  return `ORD-${number}`;
+  return `${ORDER_CODE_PREFIX}${number}`;
 }

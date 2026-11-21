@@ -60,6 +60,8 @@ export function tripTone(status: TripStatus): "neutral" | "info" | "success" | "
   return status === "PLANNING" ? "neutral" : "info";
 }
 
+export const TRIP_CODE_PREFIX = "TRP-";
+
 export function tripCode(number: number): string {
-  return `TRP-${number}`;
+  return `${TRIP_CODE_PREFIX}${number}`;
 }

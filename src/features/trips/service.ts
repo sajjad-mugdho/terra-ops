@@ -2,8 +2,10 @@ import "server-only";
 import {
   and,
   asc,
+  count,
   desc,
   eq,
+  ilike,
   inArray,
   isNotNull,
   isNull,
@@ -28,11 +30,14 @@ import { requireRole } from "@/features/auth/session";
 import type { OrderStatus } from "@/features/orders/status";
 import { unitsToCoverFuel } from "@/features/settings/break-even";
 import { AppError } from "@/lib/errors";
+import { type Paged, pageWindow } from "@/lib/pagination";
 import { CHECK_VIOLATION, isPgError, UNIQUE_VIOLATION } from "@/lib/pg-error";
+import { likePattern, parseSearch } from "@/lib/search";
 import {
   canTripTransition,
   hasReached,
   TRIP_CAPACITY,
+  TRIP_CODE_PREFIX,
   type TripStatus,
 } from "./status";
 import { expectedProfitCents, tripEarningsCents, unitsToBreakEven } from "./profit";
@@ -112,7 +117,9 @@ export type AdmiralTripDetail = TripDetail & {
   profitCents: number;
 };
 
-export type TripFilter = { status?: TripStatus; planetId?: string };
+export type TripListInput = { page?: number; status?: TripStatus };
+
+export type TripFilter = TripListInput & { q?: string; planetId?: string };
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -154,8 +161,11 @@ export const tripEarned = db
 
 const tripEarnings = sql<number>`coalesce(${tripEarned.earningsCents}, 0)`;
 
-async function listTrips(where: SQL | undefined): Promise<AdmiralTripRow[]> {
-  return db
+async function listTrips(
+  where: SQL | undefined,
+  window?: { limit: number; offset: number },
+): Promise<AdmiralTripRow[]> {
+  const query = db
     .select({
       id: trips.id,
       number: trips.number,
@@ -176,7 +186,18 @@ async function listTrips(where: SQL | undefined): Promise<AdmiralTripRow[]> {
     .leftJoin(tripEarned, eq(tripEarned.tripId, trips.id))
     .where(where)
     .orderBy(desc(trips.createdAt), desc(trips.number));
+  return window ? query.limit(window.limit).offset(window.offset) : query;
 }
+
+// One count query, then one page query. A page past the end shows the last page.
+async function pageTrips(where: SQL | undefined, page = 1): Promise<Paged<AdmiralTripRow>> {
+  const [{ total }] = await db.select({ total: count() }).from(trips).where(where);
+  const { limit, offset, ...window } = pageWindow(page, total);
+  return { rows: await listTrips(where, { limit, offset }), total, ...window };
+}
+
+// The code as the user reads it, e.g. "TRP-101".
+const tripCodeText = sql<string>`${TRIP_CODE_PREFIX}::text || ${trips.number}::text`;
 
 const withoutCaptain = (row: AdmiralTripRow): TripRow => ({
   id: row.id,
@@ -336,9 +357,16 @@ export async function getMyTrip(id: string): Promise<TripDetail> {
   return trip;
 }
 
-export async function listMyTrips(): Promise<TripRow[]> {
+export async function listMyTrips(input: TripListInput = {}): Promise<Paged<TripRow>> {
   const captain = await requireRole("captain");
-  return (await listTrips(eq(trips.captainId, captain.id))).map(withoutCaptain);
+  const paged = await pageTrips(
+    and(
+      eq(trips.captainId, captain.id),
+      input.status ? eq(trips.status, input.status) : undefined,
+    ),
+    input.page,
+  );
+  return { ...paged, rows: paged.rows.map(withoutCaptain) };
 }
 
 // The money of one own trip, for its detail page.
@@ -349,13 +377,16 @@ export async function getMyTripRow(id: string): Promise<TripRow> {
   return withoutCaptain(row);
 }
 
-export async function listAllTrips(filter: TripFilter = {}): Promise<AdmiralTripRow[]> {
+export async function listAllTrips(filter: TripFilter = {}): Promise<Paged<AdmiralTripRow>> {
   await requireRole("admiral");
-  return listTrips(
+  const text = parseSearch(filter.q);
+  return pageTrips(
     and(
       filter.status ? eq(trips.status, filter.status) : undefined,
       filter.planetId && isUuid(filter.planetId) ? eq(trips.planetId, filter.planetId) : undefined,
+      text ? ilike(tripCodeText, likePattern(text)) : undefined,
     ),
+    filter.page,
   );
 }
 
