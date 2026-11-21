@@ -12,11 +12,12 @@ A customer places and tracks an order. A planet manager accepts or rejects it. T
 | `features/orders/pricing.ts` | Pure: money formulas |
 | `features/orders/status.ts` | Pure: order status machine and labels |
 | `features/orders/eta.ts` | Pure: ETA text |
-| `features/orders/waiting.ts` | Pure: waiting time and overdue flag |
+| `features/orders/cart.ts` | Pure: the checkout cart in the URL (D38) |
+| `features/orders/waiting.ts` | Pure: waiting time and overdue flag (Phase 3) |
 | `features/orders/schemas.ts` | `placeOrderSchema`, `rejectOrderSchema` |
 | `features/orders/service.ts` | 10 functions |
 | `features/orders/actions.ts` | 3 actions |
-| `features/orders/components/` | `OrderBuilder`, `CheckoutSummary`, `OrderTable`, `OrderTimeline`, `ProgressSteps`, `QueueCard`, `RejectDialog` |
+| `features/orders/components/` | `OrderBuilder`, `CheckoutSummary`, `PlaceOrderForm`, `OrderTable`, `OrderDetailView`, `OrderTimeline`, `ProgressSteps`, `QueueCard` (holds the reject dialog) |
 
 ## 3. Data it owns
 
@@ -95,7 +96,10 @@ Messages:
 
 | Function | Purpose |
 |---|---|
-| `orderTotals(items)` | Product amount, delivery charges, making cost, customer total |
+| `orderTotals(items)` | Units, product amount, delivery charges, customer total. Making cost is added with the Admiral views in Phase 2 |
+| `mergeLines(items)` | One line per product, zero lines dropped, 1 to 20 units or `INVALID` |
+| `eventLabel(status, place, leftTrip)` | Timeline text with the real planet, sector and division (D39) |
+| `parseCart`, `cartQuery`, `isCartReady` | The cart in the URL (D38) |
 | `canTransition(from, to)` | Is this status change allowed |
 | `customerLabel(status)` | Text the customer sees |
 | `etaText(order, trip, planet)` | "About N days after lift-off" / date / "Delivered on …" |
@@ -141,3 +145,5 @@ Both decisions are one statement: `UPDATE orders ... WHERE id AND planet_id = mi
 - REJECTED is final. So is DELIVERED.
 - A manager's data never contains making cost or profit, not even hidden in the page.
 - Every status change adds exactly one event, in the same transaction.
+- The idempotency key is looked up per customer, before prices are compared, so a resend after a price change still returns the first order (D36).
+- Until Phase 4 the list functions take no arguments and return every row (D40).

@@ -15,7 +15,7 @@ A captain opens a trip to one planet, fills it with accepted orders (max 20 unit
 | `features/trips/schemas.ts` | ID schemas |
 | `features/trips/service.ts` | 16 functions |
 | `features/trips/actions.ts` | 9 actions |
-| `features/trips/components/` | `PlanetChooser`, `TripBuilder`, `CapacityBar`, `ProfitSummary`, `AvailableOrders`, `TripSteps`, `StopCard`, `TripTable` |
+| `features/trips/components/` | `PlanetChooser`, `TripBuilder`, `CapacityBar`, `OrderLines`, `TripSteps`, `StopCard`. Later phases: `ProfitSummary`, `TripTable` |
 
 ## 3. Data it owns
 
@@ -147,3 +147,6 @@ flowchart TD
 - Fuel cost is copied onto the trip when it is created and never changes after.
 - Loading a loss-making trip is allowed. The captain is warned first.
 - No time gate: a captain can mark Landed at any moment after lift-off.
+- Remove and cancel also start with the locking `SELECT`. Only add starts with `UPDATE trips`, because its `WHERE` is the capacity check.
+- The last `markStopDeliveredAction` redirects to `/captain/trip?completed=<tripId>`. The page reads that trip with `getMyTrip` and shows the "Trip completed" summary above the planet list.
+- Built in Phase 1: the 12 building and flying functions plus `getMyTrip`. `listMyTrips`, the Admiral functions, and the profit and waiting fields come in Phases 2 and 3.

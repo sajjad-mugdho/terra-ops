@@ -46,7 +46,7 @@ This phase solves pain 1 (orders get lost) and pain 2 (customers do not know whe
 | Client sends a planet ID or prices | Ignored. Server derives planet and reads prices |
 | Price or delivery charge changed since the page loaded (D23) | No order. `CONFLICT` "Prices changed. Please review the new total." Page shows new prices, customer confirms again |
 | Double click, or resubmit after a slow response | Same `idempotencyKey` → the existing order is returned. One order only |
-| Same `idempotencyKey` used by another customer | Treated as not found for them. A new key is required. No data leaks |
+| Same `idempotencyKey` used by another customer | Treated as not found for them: they get their own order (D36). No data leaks |
 | Manager, captain or admiral calls the action | `FORBIDDEN` |
 | Session expired on step 2 | `UNAUTHORIZED` "Please log in again". Cart is not lost on re-login is not guaranteed, and that is acceptable |
 | Product priced at $0 | Allowed. Line shows $0.00 plus delivery |

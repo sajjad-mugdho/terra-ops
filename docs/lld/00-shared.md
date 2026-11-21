@@ -9,7 +9,8 @@ Small pieces every feature uses. Nothing here knows about orders or trips.
 | File | Holds |
 |---|---|
 | `src/lib/errors.ts` | `AppError` |
-| `src/lib/action-result.ts` | `ActionResult`, `toActionResult()` |
+| `src/lib/action-result.ts` | `ActionResult`, `FormState`, `toActionResult()` |
+| `src/lib/pg-error.ts` | `isPgError()`: reads a Postgres error code and constraint through Drizzle's wrapper |
 | `src/lib/money.ts` | `formatMoney()`, `parseDollarsToCents()` |
 | `src/lib/dates.ts` | `formatUtc()`, `formatDuration()`, `addDays()` |
 | `src/lib/pagination.ts` | `parsePage()`, `pageWindow()` |
@@ -62,7 +63,7 @@ flowchart LR
 | Component | Type | Purpose |
 |---|---|---|
 | `AppShell` | Server | Header, role nav, user name, log out |
-| `StatusBadge` | Server | Colored label for an order or trip status |
+| `StatusBadge` | Server | Colored label. The feature passes the text and the tone |
 | `Money` | Server | Formats cents. Red with a minus when negative |
 | `DataTable` | Server | Table with an empty state |
 | `Pagination` | Server | Previous, next, "Page x of y" as links |
@@ -70,6 +71,7 @@ flowchart LR
 | `DateRangeFilter` | Client | From and to, as a GET form |
 | `AutoRefresh` | Client | `router.refresh()` every 10s while the tab is visible |
 | `SubmitButton` | Client | Disabled and shows a spinner while pending |
+| `ActionButton` | Client | One button that runs one Server Action with hidden fields and shows its error |
 | `FormError` | Client | Shows `ActionResult.error` |
 
 ---

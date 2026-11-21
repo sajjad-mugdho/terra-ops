@@ -1,0 +1,498 @@
+import "server-only";
+import { and, asc, eq, inArray, isNull, ne, notInArray, type SQL, sql } from "drizzle-orm";
+import { z } from "zod";
+import { db } from "@/db";
+import { divisions, orderEvents, orderItems, orders, planets, sectors, trips } from "@/db/schema";
+import { requireRole } from "@/features/auth/session";
+import type { OrderStatus } from "@/features/orders/status";
+import { AppError } from "@/lib/errors";
+import { CHECK_VIOLATION, isPgError, UNIQUE_VIOLATION } from "@/lib/pg-error";
+import {
+  canTripTransition,
+  hasReached,
+  TRIP_CAPACITY,
+  type TripStatus,
+} from "./status";
+import { groupStops, type Stop } from "./stops";
+
+// What a captain may know about an order: no price, no making cost, no customer.
+type OrderForCaptain = {
+  id: string;
+  number: number;
+  divisionId: string;
+  sector: string;
+  division: string;
+  items: { product: string; units: number }[];
+  totalUnits: number;
+  deliveryChargesCents: number;
+};
+
+export type CaptainOrder = OrderForCaptain & { status: OrderStatus };
+
+export type AvailableOrder = OrderForCaptain & { fits: boolean };
+
+export type TripDetail = {
+  id: string;
+  number: number;
+  planet: { id: string; name: string; daysFromEarth: number };
+  status: TripStatus;
+  totalUnits: number;
+  fuelCostCents: number;
+  createdAt: Date;
+  loadedAt: Date | null;
+  liftedOffAt: Date | null;
+  landedAt: Date | null;
+  completedAt: Date | null;
+  orders: CaptainOrder[];
+  stops: Stop<CaptainOrder>[];
+};
+
+export type TripPlanet = {
+  id: string;
+  name: string;
+  daysFromEarth: number;
+  fuelCostCents: number;
+  deliveryChargeCents: number;
+  waitingOrders: number;
+  waitingUnits: number;
+};
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const ALREADY_LOADED = "The trip is already loaded";
+const ALREADY_DONE = "Already done";
+const TAKEN = "This order was just taken by another captain";
+
+const isUuid = (value: string) => z.uuid().safeParse(value).success;
+
+const mine = (tripId: string, captainId: string) =>
+  and(eq(trips.id, tripId), eq(trips.captainId, captainId));
+
+const earned = db
+  .select({
+    orderId: orderItems.orderId,
+    deliveryChargesCents:
+      sql<number>`sum(${orderItems.units} * ${orderItems.unitDeliveryChargeCents})::int`.as(
+        "delivery_charges_cents",
+      ),
+  })
+  .from(orderItems)
+  .groupBy(orderItems.orderId)
+  .as("earned");
+
+async function loadCaptainOrders(where: SQL | undefined): Promise<CaptainOrder[]> {
+  const rows = await db
+    .select({
+      id: orders.id,
+      number: orders.number,
+      divisionId: orders.divisionId,
+      sector: sectors.name,
+      division: divisions.name,
+      status: orders.status,
+      totalUnits: orders.totalUnits,
+      deliveryChargesCents: earned.deliveryChargesCents,
+    })
+    .from(orders)
+    .innerJoin(divisions, eq(divisions.id, orders.divisionId))
+    .innerJoin(sectors, eq(sectors.id, divisions.sectorId))
+    .innerJoin(earned, eq(earned.orderId, orders.id))
+    .where(where)
+    .orderBy(asc(orders.acceptedAt), asc(orders.number));
+  if (rows.length === 0) return [];
+
+  const lines = await db
+    .select({
+      orderId: orderItems.orderId,
+      product: orderItems.productName,
+      units: orderItems.units,
+    })
+    .from(orderItems)
+    .where(
+      inArray(
+        orderItems.orderId,
+        rows.map((row) => row.id),
+      ),
+    )
+    .orderBy(asc(orderItems.productName));
+
+  return rows.map((row) => ({
+    ...row,
+    items: lines
+      .filter((line) => line.orderId === row.id)
+      .map(({ product, units }) => ({ product, units })),
+  }));
+}
+
+async function loadTrip(where: SQL | undefined): Promise<TripDetail | null> {
+  const [row] = await db
+    .select({
+      id: trips.id,
+      number: trips.number,
+      planetId: planets.id,
+      planetName: planets.name,
+      daysFromEarth: planets.daysFromEarth,
+      status: trips.status,
+      totalUnits: trips.totalUnits,
+      fuelCostCents: trips.fuelCostCents,
+      createdAt: trips.createdAt,
+      loadedAt: trips.loadedAt,
+      liftedOffAt: trips.liftedOffAt,
+      landedAt: trips.landedAt,
+      completedAt: trips.completedAt,
+    })
+    .from(trips)
+    .innerJoin(planets, eq(planets.id, trips.planetId))
+    .where(where);
+  if (!row) return null;
+
+  const tripOrders = await loadCaptainOrders(eq(orders.tripId, row.id));
+  const { planetId, planetName, daysFromEarth, ...trip } = row;
+  return {
+    ...trip,
+    planet: { id: planetId, name: planetName, daysFromEarth },
+    orders: tripOrders,
+    stops: groupStops(tripOrders),
+  };
+}
+
+export async function listPlanetsForTrip(): Promise<TripPlanet[]> {
+  await requireRole("captain");
+  const waiting = and(
+    eq(orders.planetId, planets.id),
+    eq(orders.status, "ACCEPTED"),
+    isNull(orders.tripId),
+  );
+  return db
+    .select({
+      id: planets.id,
+      name: planets.name,
+      daysFromEarth: planets.daysFromEarth,
+      fuelCostCents: planets.fuelCostCents,
+      deliveryChargeCents: planets.deliveryChargeCents,
+      waitingOrders: sql<number>`count(${orders.id})::int`,
+      waitingUnits: sql<number>`coalesce(sum(${orders.totalUnits}), 0)::int`,
+    })
+    .from(planets)
+    .leftJoin(orders, waiting)
+    .groupBy(planets.id)
+    .orderBy(asc(planets.daysFromEarth));
+}
+
+export async function getMyOpenTrip(): Promise<TripDetail | null> {
+  const captain = await requireRole("captain");
+  return loadTrip(
+    and(eq(trips.captainId, captain.id), notInArray(trips.status, ["COMPLETED", "CANCELLED"])),
+  );
+}
+
+export async function getMyTrip(id: string): Promise<TripDetail> {
+  const captain = await requireRole("captain");
+  const trip = isUuid(id) ? await loadTrip(mine(id, captain.id)) : null;
+  if (!trip) throw new AppError("NOT_FOUND");
+  return trip;
+}
+
+export async function createTrip(planetId: string): Promise<{ id: string }> {
+  const captain = await requireRole("captain");
+  const [planet] = isUuid(planetId)
+    ? await db
+        .select({ id: planets.id, fuelCostCents: planets.fuelCostCents })
+        .from(planets)
+        .where(eq(planets.id, planetId))
+    : [];
+  if (!planet) throw new AppError("INVALID", "Unknown planet");
+
+  try {
+    // The fuel cost is copied here and never follows later changes.
+    const [trip] = await db
+      .insert(trips)
+      .values({ captainId: captain.id, planetId: planet.id, fuelCostCents: planet.fuelCostCents })
+      .returning({ id: trips.id });
+    return trip;
+  } catch (error) {
+    if (isPgError(error, UNIQUE_VIOLATION, "trips_one_open_per_captain")) {
+      throw new AppError("CONFLICT", "You already have an open trip");
+    }
+    throw error;
+  }
+}
+
+export async function listAvailableOrders(tripId: string): Promise<AvailableOrder[]> {
+  const captain = await requireRole("captain");
+  const [trip] = isUuid(tripId)
+    ? await db
+        .select({ planetId: trips.planetId, totalUnits: trips.totalUnits })
+        .from(trips)
+        .where(mine(tripId, captain.id))
+    : [];
+  if (!trip) throw new AppError("NOT_FOUND");
+
+  const free = TRIP_CAPACITY - trip.totalUnits;
+  const available = await loadCaptainOrders(
+    and(eq(orders.planetId, trip.planetId), eq(orders.status, "ACCEPTED"), isNull(orders.tripId)),
+  );
+  return available.map((order) => ({
+    id: order.id,
+    number: order.number,
+    divisionId: order.divisionId,
+    sector: order.sector,
+    division: order.division,
+    items: order.items,
+    totalUnits: order.totalUnits,
+    deliveryChargesCents: order.deliveryChargesCents,
+    fits: order.totalUnits <= free,
+  }));
+}
+
+// The database re-checks every trip at commit. A refusal there means a parallel change won.
+async function tripTransaction<T>(run: (tx: Tx) => Promise<T>): Promise<T> {
+  try {
+    return await db.transaction(run);
+  } catch (error) {
+    if (isPgError(error, CHECK_VIOLATION)) throw new AppError("CONFLICT");
+    throw error;
+  }
+}
+
+// Locks the trip row, so two tabs of one captain run one after the other.
+async function lockMyTrip(tx: Tx, tripId: string, captainId: string) {
+  const [trip] = isUuid(tripId)
+    ? await tx
+        .select({ id: trips.id, status: trips.status, totalUnits: trips.totalUnits })
+        .from(trips)
+        .where(mine(tripId, captainId))
+        .for("update")
+    : [];
+  if (!trip) throw new AppError("NOT_FOUND");
+  return trip;
+}
+
+type EventInput = { status: OrderStatus; actorId: string; tripId: string; note?: string };
+
+async function addEvents(tx: Tx, orderIds: string[], event: EventInput) {
+  if (orderIds.length === 0) return;
+  await tx.insert(orderEvents).values(orderIds.map((orderId) => ({ ...event, orderId })));
+}
+
+export async function addOrderToTrip(tripId: string, orderId: string): Promise<void> {
+  const captain = await requireRole("captain");
+  if (!isUuid(tripId) || !isUuid(orderId)) throw new AppError("NOT_FOUND");
+
+  await tripTransaction(async (tx) => {
+    const [order] = await tx
+      .select({ planetId: orders.planetId, totalUnits: orders.totalUnits, status: orders.status })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+
+    // 1. Reserve the space. Two adds to one trip queue up on this row.
+    const [trip] = order
+      ? await tx
+          .update(trips)
+          .set({ totalUnits: sql`${trips.totalUnits} + ${order.totalUnits}` })
+          .where(
+            and(
+              mine(tripId, captain.id),
+              eq(trips.status, "PLANNING"),
+              sql`${trips.totalUnits} + ${order.totalUnits} <= ${TRIP_CAPACITY}`,
+            ),
+          )
+          .returning({ planetId: trips.planetId })
+      : [];
+
+    if (!trip) {
+      const [found] = await tx
+        .select({ status: trips.status })
+        .from(trips)
+        .where(mine(tripId, captain.id));
+      if (!found || !order) throw new AppError("NOT_FOUND");
+      if (found.status !== "PLANNING") throw new AppError("CONFLICT", ALREADY_LOADED);
+      throw new AppError("CONFLICT", "Not enough space");
+    }
+    if (order.planetId !== trip.planetId) {
+      throw new AppError("INVALID", "This order is for another planet");
+    }
+
+    // 2. Claim the order. Two captains queue up on this row and only the first one matches.
+    const claimed = await tx
+      .update(orders)
+      .set({ tripId, status: "ASSIGNED" })
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.planetId, trip.planetId),
+          eq(orders.status, "ACCEPTED"),
+          isNull(orders.tripId),
+        ),
+      )
+      .returning({ id: orders.id });
+    if (claimed.length === 0) {
+      const waiting = order.status === "PLACED" || order.status === "REJECTED";
+      throw new AppError("CONFLICT", waiting ? "This order is not available" : TAKEN);
+    }
+
+    await addEvents(tx, [orderId], { status: "ASSIGNED", actorId: captain.id, tripId });
+  });
+}
+
+export async function removeOrderFromTrip(tripId: string, orderId: string): Promise<void> {
+  const captain = await requireRole("captain");
+  if (!isUuid(orderId)) throw new AppError("NOT_FOUND");
+
+  await tripTransaction(async (tx) => {
+    const trip = await lockMyTrip(tx, tripId, captain.id);
+    if (trip.status !== "PLANNING") throw new AppError("CONFLICT", ALREADY_LOADED);
+
+    const [removed] = await tx
+      .update(orders)
+      .set({ tripId: null, status: "ACCEPTED" })
+      .where(and(eq(orders.id, orderId), eq(orders.tripId, tripId), eq(orders.status, "ASSIGNED")))
+      .returning({ totalUnits: orders.totalUnits });
+    if (!removed) throw new AppError("NOT_FOUND");
+
+    await tx
+      .update(trips)
+      .set({ totalUnits: sql`${trips.totalUnits} - ${removed.totalUnits}` })
+      .where(eq(trips.id, tripId));
+    await addEvents(tx, [orderId], {
+      status: "ACCEPTED",
+      actorId: captain.id,
+      tripId,
+      note: "Removed from trip",
+    });
+  });
+}
+
+export async function cancelTrip(tripId: string): Promise<void> {
+  const captain = await requireRole("captain");
+
+  await tripTransaction(async (tx) => {
+    const trip = await lockMyTrip(tx, tripId, captain.id);
+    if (trip.status === "CANCELLED") throw new AppError("CONFLICT", ALREADY_DONE);
+    if (!canTripTransition(trip.status, "CANCELLED")) {
+      throw new AppError("CONFLICT", ALREADY_LOADED);
+    }
+
+    const freed = await tx
+      .update(orders)
+      .set({ tripId: null, status: "ACCEPTED" })
+      .where(eq(orders.tripId, tripId))
+      .returning({ id: orders.id });
+    await tx
+      .update(trips)
+      .set({ status: "CANCELLED", totalUnits: 0, cancelledAt: sql`now()` })
+      .where(eq(trips.id, tripId));
+    await addEvents(
+      tx,
+      freed.map((order) => order.id),
+      { status: "ACCEPTED", actorId: captain.id, tripId, note: "Trip cancelled" },
+    );
+  });
+}
+
+const STEP_TIME = {
+  LOADED: "loadedAt",
+  LIFTED_OFF: "liftedOffAt",
+  LANDED: "landedAt",
+} as const;
+
+// A whole-trip step: the trip and every order on it move together.
+async function advanceTrip(tripId: string, step: keyof typeof STEP_TIME): Promise<void> {
+  const captain = await requireRole("captain");
+
+  await tripTransaction(async (tx) => {
+    const trip = await lockMyTrip(tx, tripId, captain.id);
+    if (hasReached(trip.status, step)) throw new AppError("CONFLICT", ALREADY_DONE);
+    if (!canTripTransition(trip.status, step)) {
+      throw new AppError("CONFLICT", "This step is not available yet");
+    }
+    if (step === "LOADED" && trip.totalUnits === 0) {
+      throw new AppError("INVALID", "Add at least one order");
+    }
+
+    await tx
+      .update(trips)
+      .set({ status: step, [STEP_TIME[step]]: sql`now()` })
+      .where(eq(trips.id, tripId));
+    const moved = await tx
+      .update(orders)
+      .set({ status: step })
+      .where(eq(orders.tripId, tripId))
+      .returning({ id: orders.id });
+    await addEvents(
+      tx,
+      moved.map((order) => order.id),
+      { status: step, actorId: captain.id, tripId },
+    );
+  });
+}
+
+export async function markLoaded(tripId: string): Promise<void> {
+  await advanceTrip(tripId, "LOADED");
+}
+
+export async function markLiftedOff(tripId: string): Promise<void> {
+  await advanceTrip(tripId, "LIFTED_OFF");
+}
+
+export async function markLanded(tripId: string): Promise<void> {
+  await advanceTrip(tripId, "LANDED");
+}
+
+// A stop step: every order of one division in the trip moves together.
+async function advanceStop(
+  tripId: string,
+  divisionId: string,
+  step: "AT_SECTOR" | "DELIVERED",
+): Promise<{ completed: boolean }> {
+  const captain = await requireRole("captain");
+  if (!isUuid(divisionId)) throw new AppError("NOT_FOUND");
+  const from = step === "AT_SECTOR" ? "LANDED" : "AT_SECTOR";
+  const stop = and(eq(orders.tripId, tripId), eq(orders.divisionId, divisionId));
+
+  return tripTransaction(async (tx) => {
+    const trip = await lockMyTrip(tx, tripId, captain.id);
+    const stopOrders = await tx.select({ status: orders.status }).from(orders).where(stop);
+    if (stopOrders.length === 0) throw new AppError("NOT_FOUND");
+    if (trip.status === "COMPLETED") throw new AppError("CONFLICT", ALREADY_DONE);
+    if (trip.status !== "LANDED") throw new AppError("CONFLICT", "The trip has not landed yet");
+
+    const moved = await tx
+      .update(orders)
+      .set({ status: step, ...(step === "DELIVERED" && { deliveredAt: sql`now()` }) })
+      .where(and(stop, eq(orders.status, from)))
+      .returning({ id: orders.id });
+    if (moved.length === 0) {
+      const done = stopOrders.every((order) => order.status !== "LANDED");
+      throw new AppError(
+        "CONFLICT",
+        step === "DELIVERED" && !done ? "Mark this stop as delivered to sector first" : ALREADY_DONE,
+      );
+    }
+    await addEvents(
+      tx,
+      moved.map((order) => order.id),
+      { status: step, actorId: captain.id, tripId },
+    );
+    if (step !== "DELIVERED") return { completed: false };
+
+    // The last delivery closes the trip in the same transaction.
+    const left = await tx.$count(orders, and(eq(orders.tripId, tripId), ne(orders.status, "DELIVERED")));
+    if (left > 0) return { completed: false };
+    await tx
+      .update(trips)
+      .set({ status: "COMPLETED", completedAt: sql`now()` })
+      .where(eq(trips.id, tripId));
+    return { completed: true };
+  });
+}
+
+export async function markStopAtSector(tripId: string, divisionId: string): Promise<void> {
+  await advanceStop(tripId, divisionId, "AT_SECTOR");
+}
+
+export async function markStopDelivered(
+  tripId: string,
+  divisionId: string,
+): Promise<{ completed: boolean }> {
+  return advanceStop(tripId, divisionId, "DELIVERED");
+}

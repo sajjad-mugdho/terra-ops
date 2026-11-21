@@ -118,6 +118,11 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D33 | Database design | As in `database.md`. Manager on `planets.manager_id` (no planet column on `user`). `number` identity instead of text codes. Composite foreign keys for planet agreement. Triggers make history append-only and check each trip at commit (units, status agreement, completion). Role behind a foreign key is not checked by the database: seed only |
 | D34 | Seed values and demo accounts | Confirmed C1, C2, C4: the planet and product numbers in `plan.md` §11, password `terra-demo-2026`, emails `admiral@`, `manager.<planet>@`, `captain1..3@`, `customer1..4@terra.demo`, currency `$` |
 | D35 | Seed and test folders | `src/seed/` holds the seed (it needs the demo list from `features/auth`, so it cannot live in `db/`). `src/test/` holds test setup. Tests use the database `terra_ops_test`, created and migrated by the test run |
+| D36 | Idempotency key scope | The checkout key is unique per customer (`orders_customer_idempotency_unique`). The same key from another customer is simply not found for them and makes their own order. No order is ever returned across customers |
+| D37 | Repeated click | A trip or stop step that was already taken changes nothing and returns `CONFLICT` "Already done". A skipped step returns `CONFLICT` "This step is not available yet" |
+| D38 | Cart state | The checkout cart lives in the URL (`?division=&items=id:units,...&step=review`). A refresh on step 2 and the "Back" link keep it. The server drops unknown IDs from it |
+| D39 | Timeline of a returned order | An order that leaves a trip gets an ACCEPTED event that carries the trip. The timeline shows it as "Removed from trip". The note is "Removed from trip" or "Trip cancelled" |
+| D40 | Lists before Phase 4 | `listMyOrders` and `listPlanetOrders` return every row, with no `page`, `q` or `status` yet. Pagination, search, auto-refresh, waiting time and expected trip profit stay in Phases 3 and 4 |
 
 ## Changes vs project.md
 
@@ -140,14 +145,27 @@ Reference material (data model, status machines, money, permissions) is in `plan
 |---|---|
 | Setup | Done |
 | 0 Foundation | Slices 0.1 to 0.5 done locally. 0.6 (live deploy) waits for the Neon and Vercel projects |
-| 1 to 6 | Not started |
+| 1 Order flow | Slices 1.1 to 1.6 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
+| 2 to 6 | Not started |
 
 ## Open questions
 
 - Confirmations C5, C6, C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled).
-- Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26).
+- Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
 
 ## Changelog
+
+### 2026-11-22 · Phase 1, order flow
+
+- 1.1 Checkout: `orders/pricing`, `status`, `cart`, `placeOrder`, `/customer/orders/new` in two steps. Prices, making cost and delivery charge are frozen on each line. Price change blocks the order (D23). Same key twice gives one order, also for two calls at once (D36).
+- 1.2 Tracking: `/customer/orders` and `/customer/orders/[id]` with the 8 step progress line, UTC timeline, ETA (`orders/eta`), rejected state.
+- 1.3 Manager: `/manager/queue` with accept and reject (reason dialog), `/manager/orders`, `/manager/orders/[id]`. No making cost or profit in any manager DTO.
+- 1.4 to 1.6 Captain: `/captain/trip` from planet list to completed trip. `trips/status`, `trips/stops`, 13 service functions, 9 actions. Race-safe add: reserve space on the trip row, then claim the order. Every other step locks the trip row first.
+- Not built on purpose (D40): pagination, search, auto-refresh, waiting time, expected profit, Admiral lists, captain trip history.
+- New shared pieces: `lib/pg-error`, `FormState`, `components/action-button`, `components/status-badge`, `test/orders`.
+- 557 automated tests (161 before). New: both status machines over every pair, money formulas, ETA, cart, stop grouping, database checks and triggers for orders and trips, service tests for permissions, scoping, snapshots, idempotency and the races (two captains on one order, parallel adds past 20 units, double clicks, last two stops at once), Server Action tests, and the full flow from `placeOrder` to COMPLETED with the exact event list.
+- Checked in a real browser against a production build: 38 checks across customer, manager and captain, from checkout to "Delivered to division", plus a rejected order.
+- Known behavior: a scoped lookup that finds nothing renders the not-found page, but the HTTP status is 200 because `loading.tsx` has already started the response.
 
 ### 2026-11-22 · Phase 0 test gaps closed
 

@@ -7,6 +7,9 @@ export type ActionFailure = { ok: false; error: string; fieldErrors?: FieldError
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | ActionFailure;
 
+// State of a form driven by useActionState. null before the first submit.
+export type FormState = ActionResult<{ message: string }> | null;
+
 export function toActionResult(error: unknown): ActionFailure {
   if (error instanceof AppError) return { ok: false, error: error.message };
   if (error instanceof z.ZodError) {

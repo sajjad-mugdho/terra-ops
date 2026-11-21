@@ -1,0 +1,386 @@
+import "server-only";
+import { and, asc, desc, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { z } from "zod";
+import { db } from "@/db";
+import {
+  divisions,
+  orderEvents,
+  orderItems,
+  orders,
+  planets,
+  products,
+  sectors,
+  trips,
+  user,
+} from "@/db/schema";
+import { requireManagerPlanet, requireRole } from "@/features/auth/session";
+import { getDivisionWithPlanet } from "@/features/locations/service";
+import { AppError } from "@/lib/errors";
+import { lineTotalCents, mergeLines, orderTotals } from "./pricing";
+import type { PlaceOrderInput } from "./schemas";
+import { eventLabel, type OrderStatus, type PaymentStatus } from "./status";
+
+export type Destination = { planet: string; sector: string; division: string };
+
+export type OrderListRow = {
+  id: string;
+  number: number;
+  destination: Destination;
+  totalUnits: number;
+  totalCents: number;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  createdAt: Date;
+};
+
+export type PlanetOrderRow = OrderListRow & { customerName: string };
+
+export type OrderLine = {
+  productName: string;
+  units: number;
+  unitPriceCents: number;
+  unitDeliveryChargeCents: number;
+  lineTotalCents: number;
+};
+
+export type TimelineEvent = {
+  status: OrderStatus;
+  label: string;
+  note: string | null;
+  occurredAt: Date;
+};
+
+export type OrderDetail = {
+  id: string;
+  number: number;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  rejectReason: string | null;
+  destination: Destination;
+  daysFromEarth: number;
+  createdAt: Date;
+  deliveredAt: Date | null;
+  items: OrderLine[];
+  totalUnits: number;
+  productAmountCents: number;
+  deliveryChargesCents: number;
+  totalCents: number;
+  timeline: TimelineEvent[];
+  trip: { number: number; liftedOffAt: Date | null; landedAt: Date | null } | null;
+};
+
+export type PlanetOrderDetail = OrderDetail & { customerName: string };
+
+export type QueueOrder = {
+  id: string;
+  number: number;
+  customerName: string;
+  sector: string;
+  division: string;
+  items: { productName: string; units: number }[];
+  totalUnits: number;
+  totalCents: number;
+  createdAt: Date;
+};
+
+const HANDLED = "This order was already handled";
+
+const isUuid = (value: string) => z.uuid().safeParse(value).success;
+
+// What the customer paid per order, summed in SQL from the frozen lines.
+const paid = db
+  .select({
+    orderId: orderItems.orderId,
+    totalCents:
+      sql<number>`sum(${orderItems.units} * (${orderItems.unitPriceCents} + ${orderItems.unitDeliveryChargeCents}))::int`.as(
+        "total_cents",
+      ),
+  })
+  .from(orderItems)
+  .groupBy(orderItems.orderId)
+  .as("paid");
+
+export async function placeOrder(input: PlaceOrderInput): Promise<{ id: string; number: number }> {
+  const customer = await requireRole("customer");
+  const lines = mergeLines(input.items);
+  // The planet and its delivery charge come from the division, never from the client.
+  const division = await getDivisionWithPlanet(input.divisionId);
+
+  return db.transaction(async (tx) => {
+    const mine = and(
+      eq(orders.customerId, customer.id),
+      eq(orders.idempotencyKey, input.idempotencyKey),
+    );
+    const placed = { id: orders.id, number: orders.number };
+    const [existing] = await tx.select(placed).from(orders).where(mine);
+    if (existing) return existing;
+
+    const priced = await tx
+      .select()
+      .from(products)
+      .where(
+        inArray(
+          products.id,
+          lines.map((line) => line.productId),
+        ),
+      );
+    const items = lines.map((line) => {
+      const product = priced.find((each) => each.id === line.productId);
+      if (!product) throw new AppError("INVALID", "Unknown product");
+      return {
+        productId: product.id,
+        units: line.units,
+        productName: product.name,
+        unitPriceCents: product.priceCents,
+        unitMakingCostCents: product.makingCostCents,
+        unitDeliveryChargeCents: division.deliveryChargeCents,
+      };
+    });
+
+    const totals = orderTotals(items);
+    if (totals.totalCents !== input.expectedTotalCents) {
+      throw new AppError("CONFLICT", "Prices changed. Please review the new total.");
+    }
+
+    const [order] = await tx
+      .insert(orders)
+      .values({
+        idempotencyKey: input.idempotencyKey,
+        customerId: customer.id,
+        planetId: division.planetId,
+        divisionId: division.divisionId,
+        totalUnits: totals.totalUnits,
+      })
+      .onConflictDoNothing({ target: [orders.customerId, orders.idempotencyKey] })
+      .returning(placed);
+    // A double click that raced past the first lookup: the other request made the order.
+    if (!order) return (await tx.select(placed).from(orders).where(mine))[0];
+
+    await tx.insert(orderItems).values(items.map((item) => ({ ...item, orderId: order.id })));
+    await tx
+      .insert(orderEvents)
+      .values({ orderId: order.id, status: "PLACED", actorId: customer.id });
+    return order;
+  });
+}
+
+type Listed = { order: OrderListRow; customerName: string };
+
+async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[]> {
+  const rows = await db
+    .select({
+      id: orders.id,
+      number: orders.number,
+      planet: planets.name,
+      sector: sectors.name,
+      division: divisions.name,
+      totalUnits: orders.totalUnits,
+      totalCents: paid.totalCents,
+      status: orders.status,
+      paymentStatus: orders.paymentStatus,
+      createdAt: orders.createdAt,
+      customerName: user.name,
+    })
+    .from(orders)
+    .innerJoin(planets, eq(planets.id, orders.planetId))
+    .innerJoin(divisions, eq(divisions.id, orders.divisionId))
+    .innerJoin(sectors, eq(sectors.id, divisions.sectorId))
+    .innerJoin(user, eq(user.id, orders.customerId))
+    .innerJoin(paid, eq(paid.orderId, orders.id))
+    .where(where)
+    .orderBy(...order);
+
+  return rows.map(({ planet, sector, division, customerName, ...row }) => ({
+    order: { ...row, destination: { planet, sector, division } },
+    customerName,
+  }));
+}
+
+async function loadOrder(
+  scope: SQL | undefined,
+): Promise<{ order: OrderDetail; customerName: string }> {
+  const [row] = await db
+    .select({
+      id: orders.id,
+      number: orders.number,
+      status: orders.status,
+      paymentStatus: orders.paymentStatus,
+      rejectReason: orders.rejectReason,
+      createdAt: orders.createdAt,
+      deliveredAt: orders.deliveredAt,
+      planet: planets.name,
+      daysFromEarth: planets.daysFromEarth,
+      sector: sectors.name,
+      division: divisions.name,
+      customerName: user.name,
+      tripNumber: trips.number,
+      liftedOffAt: trips.liftedOffAt,
+      landedAt: trips.landedAt,
+    })
+    .from(orders)
+    .innerJoin(planets, eq(planets.id, orders.planetId))
+    .innerJoin(divisions, eq(divisions.id, orders.divisionId))
+    .innerJoin(sectors, eq(sectors.id, divisions.sectorId))
+    .innerJoin(user, eq(user.id, orders.customerId))
+    .leftJoin(trips, eq(trips.id, orders.tripId))
+    .where(scope);
+  if (!row) throw new AppError("NOT_FOUND");
+
+  // Amounts always come from the frozen lines, never from today's prices.
+  const lines = await db
+    .select({
+      productName: orderItems.productName,
+      units: orderItems.units,
+      unitPriceCents: orderItems.unitPriceCents,
+      unitDeliveryChargeCents: orderItems.unitDeliveryChargeCents,
+    })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, row.id))
+    .orderBy(asc(orderItems.productName));
+
+  const events = await db
+    .select({
+      status: orderEvents.status,
+      note: orderEvents.note,
+      tripId: orderEvents.tripId,
+      occurredAt: orderEvents.occurredAt,
+    })
+    .from(orderEvents)
+    .where(eq(orderEvents.orderId, row.id))
+    .orderBy(asc(orderEvents.seq));
+
+  const { planet, sector, division, tripNumber, liftedOffAt, landedAt, customerName, ...order } = row;
+  const destination = { planet, sector, division };
+  return {
+    customerName,
+    order: {
+      ...order,
+      destination,
+      items: lines.map((line) => ({ ...line, lineTotalCents: lineTotalCents(line) })),
+      ...orderTotals(lines),
+      timeline: events.map(({ tripId, ...event }) => ({
+        ...event,
+        label: eventLabel(event.status, destination, tripId !== null),
+      })),
+      trip: tripNumber === null ? null : { number: tripNumber, liftedOffAt, landedAt },
+    },
+  };
+}
+
+export async function listMyOrders(): Promise<OrderListRow[]> {
+  const customer = await requireRole("customer");
+  const rows = await listOrders(eq(orders.customerId, customer.id), [
+    desc(orders.createdAt),
+    desc(orders.number),
+  ]);
+  return rows.map((row) => row.order);
+}
+
+export async function getMyOrder(id: string): Promise<OrderDetail> {
+  const customer = await requireRole("customer");
+  if (!isUuid(id)) throw new AppError("NOT_FOUND");
+  return (await loadOrder(and(eq(orders.id, id), eq(orders.customerId, customer.id)))).order;
+}
+
+export async function listQueue(): Promise<QueueOrder[]> {
+  const manager = await requireManagerPlanet();
+  const rows = await listOrders(
+    and(eq(orders.planetId, manager.planetId), eq(orders.status, "PLACED")),
+    [asc(orders.createdAt), asc(orders.number)],
+  );
+  if (rows.length === 0) return [];
+
+  const lines = await db
+    .select({
+      orderId: orderItems.orderId,
+      productName: orderItems.productName,
+      units: orderItems.units,
+    })
+    .from(orderItems)
+    .where(
+      inArray(
+        orderItems.orderId,
+        rows.map((row) => row.order.id),
+      ),
+    )
+    .orderBy(asc(orderItems.productName));
+
+  return rows.map(({ order, customerName }) => ({
+    id: order.id,
+    number: order.number,
+    customerName,
+    sector: order.destination.sector,
+    division: order.destination.division,
+    items: lines
+      .filter((line) => line.orderId === order.id)
+      .map(({ productName, units }) => ({ productName, units })),
+    totalUnits: order.totalUnits,
+    totalCents: order.totalCents,
+    createdAt: order.createdAt,
+  }));
+}
+
+export async function listPlanetOrders(): Promise<PlanetOrderRow[]> {
+  const manager = await requireManagerPlanet();
+  const rows = await listOrders(eq(orders.planetId, manager.planetId), [
+    desc(orders.createdAt),
+    desc(orders.number),
+  ]);
+  return rows.map(({ order, customerName }) => ({ ...order, customerName }));
+}
+
+export async function getPlanetOrder(id: string): Promise<PlanetOrderDetail> {
+  const manager = await requireManagerPlanet();
+  if (!isUuid(id)) throw new AppError("NOT_FOUND");
+  const { order, customerName } = await loadOrder(
+    and(eq(orders.id, id), eq(orders.planetId, manager.planetId)),
+  );
+  return { ...order, customerName };
+}
+
+type Decision =
+  | { status: "ACCEPTED" }
+  | { status: "REJECTED"; reason: string };
+
+async function decide(id: string, decision: Decision): Promise<void> {
+  const manager = await requireManagerPlanet();
+  if (!isUuid(id)) throw new AppError("NOT_FOUND");
+  const mine = and(eq(orders.id, id), eq(orders.planetId, manager.planetId));
+
+  await db.transaction(async (tx) => {
+    // One statement decides the race: only a PLACED order of this planet changes.
+    const changed = await tx
+      .update(orders)
+      .set(
+        decision.status === "ACCEPTED"
+          ? { status: "ACCEPTED", acceptedAt: sql`now()` }
+          : { status: "REJECTED", paymentStatus: "REFUNDED", rejectReason: decision.reason },
+      )
+      .where(and(mine, eq(orders.status, "PLACED")))
+      .returning({ id: orders.id });
+
+    if (changed.length === 0) {
+      const [found] = await tx.select({ id: orders.id }).from(orders).where(mine);
+      throw found ? new AppError("CONFLICT", HANDLED) : new AppError("NOT_FOUND");
+    }
+
+    await tx.insert(orderEvents).values({
+      orderId: id,
+      status: decision.status,
+      actorId: manager.id,
+      note: decision.status === "REJECTED" ? decision.reason : null,
+    });
+  });
+}
+
+export async function acceptOrder(id: string): Promise<void> {
+  await decide(id, { status: "ACCEPTED" });
+}
+
+export async function rejectOrder(id: string, reason: string): Promise<void> {
+  const text = reason.trim();
+  if (text.length < 3 || text.length > 300) {
+    throw new AppError("INVALID", "Give a reason of 3 to 300 characters");
+  }
+  await decide(id, { status: "REJECTED", reason: text });
+}
