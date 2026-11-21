@@ -57,7 +57,7 @@
 | Layer | Work |
 |---|---|
 | Schema | `planets`, `sectors`, `divisions`, `products` with all constraints from `plan.md` 3.1. Migration |
-| Seed | `npm run db:seed -- --yes`: 7 planets, 2 sectors each, 2 to 3 divisions each, 5 products **[C1]**. Includes Mars → Olympus Sector → Division 7 |
+| Seed | `npm run db:seed -- --yes`: 7 destination planets (Earth is the origin only, D30), 2 sectors each, 2 to 3 divisions each, 5 products **[C1]**. Includes Mars → Olympus Sector → Division 7 |
 | Service | `locations/service.ts`: `listLocationTree()`, `getDivisionWithPlanet(id)`. `settings/service.ts`: `listProducts()` (price only, no making cost, for non-admirals) |
 
 ### Acceptance criteria
@@ -77,6 +77,7 @@
 | Same sector name on two different planets | Allowed |
 | `getDivisionWithPlanet` with an unknown or malformed ID | `INVALID`, not a crash |
 | `listLocationTree()` without a session | `UNAUTHORIZED` |
+| Earth in the location picker | Never appears. It is not a row in `planets` |
 | Seed run against the live database | Works the same, still needs `--yes` |
 
 ### Tests
@@ -95,7 +96,7 @@
 
 | Layer | Work |
 |---|---|
-| Schema | `user.planet_id`, role CHECK, manager-needs-planet CHECK, unique manager per planet (D7). `planetId` as Better Auth additional field, `input: false`. Migration |
+| Schema | Role CHECK on `user`. `planets.manager_id NOT NULL UNIQUE` (D7, see `database.md`). No planet column on `user`. Migration |
 | Seed | 1 Admiral, 7 managers, 3 captains, 4 customers, created through Better Auth **[C2]** |
 | Service | `auth/session.ts`: `getCurrentUser()` in React `cache()`, `requireUser()`, `requireRole()`. `auth/roles.ts`: role list and role home map |
 | Routing | `proxy.ts` optimistic guard. `(auth)/login`. `(app)` layout with app shell. One layout per role segment calling `requireRole`. `/` redirect |

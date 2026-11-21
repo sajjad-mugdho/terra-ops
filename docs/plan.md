@@ -55,33 +55,9 @@ Role homes: customer `/customer/orders`, manager `/manager/queue`, captain `/cap
 
 ## 3. Data model
 
-IDs are UUIDs (`gen_random_uuid()`), except Better Auth tables (text IDs). All time columns are `timestamptz`. All money columns are integer cents with `CHECK (x >= 0)`.
+Moved to `database.md`: tables, ERD, constraints, triggers, indexes and what the database does not enforce. The schema is in `src/db/schema/` and the migrations in `drizzle/`.
 
-### 3.1 Tables
-
-| Table | Columns | Constraints |
-|---|---|---|
-| `user` (Better Auth) | + `role` text default `customer`, + `planet_id` uuid null FK planets | `CHECK role IN (admiral, manager, captain, customer)`. `CHECK ((role = 'manager') = (planet_id IS NOT NULL))`. Unique partial index on `planet_id WHERE role = 'manager'` (D7). Both extra fields `input: false` |
-| `planets` | id, name, days_from_earth, delivery_charge_cents, fuel_cost_cents | name unique. `days_from_earth > 0` |
-| `sectors` | id, planet_id FK, name | unique (planet_id, name) |
-| `divisions` | id, sector_id FK, name | unique (sector_id, name) |
-| `products` | id, name, price_cents, making_cost_cents | name unique. Fixed 5 rows from the seed (D18) |
-| `orders` | id, code, idempotency_key, customer_id FK, planet_id FK, division_id FK, status, payment_status, total_units, trip_id FK null, reject_reason, created_at, accepted_at, delivered_at, updated_at | code unique. idempotency_key unique. `total_units BETWEEN 1 AND 20`. `(status = 'REJECTED') = (payment_status = 'REFUNDED')`. `status <> 'REJECTED' OR reject_reason IS NOT NULL`. `(trip_id IS NULL) = (status IN ('PLACED','ACCEPTED','REJECTED'))` |
-| `order_items` | id, order_id FK, product_id FK, units, unit_price_cents, unit_making_cost_cents, unit_delivery_charge_cents | `units >= 1`. unique (order_id, product_id). Snapshot values |
-| `trips` | id, code, captain_id FK, planet_id FK, status, total_units, fuel_cost_cents, created_at, loaded_at, lifted_off_at, landed_at, completed_at, cancelled_at | code unique. `total_units BETWEEN 0 AND 20`. Unique partial index on `captain_id WHERE status NOT IN ('COMPLETED','CANCELLED')` |
-| `order_events` | id, order_id FK, status, actor_id FK, note, occurred_at | Append-only. No update or delete in code |
-| `settings_changes` | id, actor_id FK, entity (`product` or `planet`), entity_id, field, old_value, new_value, changed_at | Append-only |
-
-Notes:
-
-- `orders.planet_id` is derived on the server from the division. It exists for fast scoping.
-- `accepted_at` drives waiting time. `delivered_at` drives report date filters.
-- "Every planet has a manager" cannot be a table constraint. It is guaranteed by the seed (staff come only from the seed, D9) and checked by a seed test.
-- Codes come from Postgres sequences: `ORD-1001`, `TRP-101` **[Confirm]**.
-
-### 3.2 Indexes
-
-`orders (planet_id, status)` · `orders (customer_id, created_at)` · `orders (trip_id)` · `orders (status, delivered_at)` · `order_events (order_id, occurred_at)` · `trips (captain_id, status)` · `trips (planet_id, status)`
+Short version: 9 domain tables (`planets`, `sectors`, `divisions`, `products`, `settings_changes`, `orders`, `order_items`, `order_events`, `trips`). Orders and trips have a `number` shown as `ORD-1001` and `TRP-101`. A manager's planet is `planets.manager_id`.
 
 ---
 
@@ -176,7 +152,7 @@ Every row is enforced in `service.ts`, never only in the UI.
 | Edit prices and charges | No | No | No | Yes |
 | Settings history | No | No | No | Yes |
 
-Captains see units, destination and delivery charges of an order. Never product price, making cost or company profit. Customer name is not shown to captains **[Confirm]**.
+Captains see the product names, units, destination and delivery charges of an order (D29). Never product price, making cost, company profit or the customer name.
 
 ---
 
@@ -188,7 +164,7 @@ Each feature lists its service functions (the DAL), its Server Actions, and its 
 
 | Piece | Detail |
 |---|---|
-| `getCurrentUser()` | Session read wrapped in React `cache()`. Returns `{ id, name, role, planetId }` or null |
+| `getCurrentUser()` | Session read wrapped in React `cache()`. Returns `{ id, name, role, planetId }` or null (`planetId` comes from `planets.manager_id`) |
 | `requireUser()`, `requireRole(role)` | Throw `UNAUTHORIZED` / `FORBIDDEN`. Used at the top of every service function |
 | Sign-up page | Name, email, password. Always creates a customer |
 | Login page | Email + password form. Below it, demo accounts grouped by role with "Log in as" buttons |
@@ -243,7 +219,7 @@ Edge cases: another customer's order ID → `notFound()` · order with no trip y
 | Function | Rule |
 |---|---|
 | `createTrip(planetId)` | Captain has no open trip. Copies the planet's fuel cost. A second open trip hits the unique index → `CONFLICT` |
-| `listAvailableOrders(tripId)` | ACCEPTED, no trip, same planet as the trip. Shows units, division, delivery charges, waiting time |
+| `listAvailableOrders(tripId)` | ACCEPTED, no trip, same planet as the trip. Shows products with units, division, delivery charges, waiting time |
 | `addOrderToTrip(tripId, orderId)` | One transaction. 1) `UPDATE trips SET total_units = total_units + n WHERE id AND captain_id = me AND status = 'PLANNING' AND total_units + n <= 20`. 2) `UPDATE orders SET trip_id, status = 'ASSIGNED' WHERE id AND planet_id = tripPlanet AND status = 'ACCEPTED' AND trip_id IS NULL`. 3) event. Zero rows in step 2 → roll back |
 | `removeOrderFromTrip(tripId, orderId)` | Trip PLANNING only. Order back to ACCEPTED, units subtracted, event "Removed from trip" |
 | `cancelTrip(tripId)` | PLANNING only. All orders back to ACCEPTED with events. Trip CANCELLED |
@@ -272,9 +248,10 @@ All SQL aggregates on snapshot columns.
 | Report | Query |
 |---|---|
 | Admiral totals | Units, revenue, cost, profit of DELIVERED orders in the date range |
-| Admiral planet × product | `GROUP BY planet, product`. Planets with no deliveries still show, with zeros (left join) |
+| Admiral profit by planet (D32) | `GROUP BY planet`: units, revenue, cost, profit. Sorted by profit, highest first. Shown at the top |
+| Admiral planet × product | `GROUP BY planet, product`. Planets in the same order as the summary. Planets with no deliveries still show, with zeros (left join) |
 | Admiral pipeline | Order count per status. Not affected by the date range |
-| Manager purchases | Own planet, `GROUP BY product`: units, product amount, delivery charges, total paid. DELIVERED in range. "In progress" block next to it |
+| Manager purchases | Own planet, `GROUP BY product`: units, product amount, delivery charges, total paid. DELIVERED in range. A second "In progress" table with the same columns for ACCEPTED to AT_SECTOR (D31) |
 | Captain earnings | Per trip: earnings, fuel, profit. Totals over COMPLETED trips. Open trip shown as "Expected" |
 
 Date range: by `delivered_at` (orders) or `completed_at` (trips), UTC days. Default: last 30 days **[Confirm]**.
@@ -288,7 +265,7 @@ Edge cases: planet with no deliveries → zero row · price changed mid-period �
 | Expected trip profit | In the trip builder: earnings so far − fuel = expected profit, updating as orders are added. Each available order shows its delivery charges. Warning above the Load button when the profit is negative. Loading is still allowed |
 | Waiting time | "Waiting 2d 5h": since `created_at` for PLACED, since `accepted_at` for ACCEPTED. Shown in the manager queue, captain available list and Admiral orders. Admiral list can sort by longest waiting. Highlight after 3 days **[Confirm]** |
 | Auto-refresh (D24) | One small Client Component that calls `router.refresh()` every 10 seconds while the tab is visible. Used on customer tracking, manager queue and captain available orders |
-| Pagination + search | 20 rows per page. State in the URL: `?page=&q=&status=`. Search by order code, plus customer name for staff. Offset pagination, with a total count |
+| Pagination + search | 20 rows per page. State in the URL: `?page=&q=&status=`. Search by order number, plus customer name for staff. Offset pagination, with a total count |
 | Settings history page | See 7.5 |
 
 ---
@@ -313,7 +290,7 @@ A phase is done when: tests pass, CI is green, it runs on the live URL, `context
 
 1. `.gitignore`: add `.agents/`, `.claude/`, `.zcode/`, `skills-lock.json` (D20). First commit.
 2. Shared code from section 8. Install `server-only`, alias it in `vitest.config.ts`.
-3. Schema: locations, products, `user.planet_id`, all constraints. Migration.
+3. Schema: done for every table (`database.md`). Migrations `0001_domain` and `0002_triggers`.
 4. `auth` feature: session helpers, `proxy.ts`, role layouts, login, sign-up, demo login.
 5. App shell with role navigation. `loading.tsx`, `error.tsx`, `not-found.tsx`.
 6. Seed v1: planets, sectors, divisions, products, users.
@@ -421,6 +398,7 @@ No browser end-to-end tests. The flows are checked by hand on the live URL at th
 | Food | $12 | $7 |
 | Machines | $60 | $42 |
 
+- Earth is not in the planets table. It is the origin of every trip, never a destination (D30).
 - Locations: 2 sectors per planet, 2 to 3 divisions per sector. Includes Mars → Olympus Sector → Division 7.
 - Users: 1 Admiral, 7 managers (one per planet), 3 captains, 4 customers. One shared demo password **[Confirm value]**. Emails like `admiral@terra.demo`, `manager.mars@terra.demo` **[Confirm]**.
 - History: about 30 orders covering every status · several COMPLETED trips including one loss trip · one CANCELLED trip · one open trip in each of PLANNING and LANDED · one rejected order · a few old ACCEPTED small orders to far planets that nobody picked (shows waiting time) · one product whose price changed after some deliveries, with its history row (proves snapshots).
@@ -472,7 +450,7 @@ What it does · live link · demo users · 2-minute tour per role · how to run 
 | C4 | Currency symbol | `$` |
 | C5 | Default report date range | Last 30 days |
 | C6 | Waiting-time highlight | After 3 days |
-| C7 | Captain sees customer name | No |
+| C7 | Captain sees customer name | Settled: no (D29) |
 | C8 | Where migrations run for production | From the local machine, by command |
 | C9 | Video walkthrough | Yes, 3 to 5 minutes |
 | C10 | Page size | 20 rows |

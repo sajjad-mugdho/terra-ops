@@ -16,7 +16,7 @@ This phase solves pain 1 (orders get lost) and pain 2 (customers do not know whe
 
 | Layer | Work |
 |---|---|
-| Schema | `orders`, `order_items`, `order_events`, order code sequence **[C3]**. All constraints from `plan.md` 3.1. Migration |
+| Schema | Already migrated: `orders`, `order_items`, `order_events` (`database.md`). Turn its checks for these tables into tests |
 | Pure logic | `orders/pricing.ts`: line totals, product amount, delivery charges, customer total. `orders/status.ts`: full order status machine (`canTransition`, labels) |
 | Schema (Zod) | `placeOrderSchema`: division ID, items (product ID + integer units ≥ 1), `expectedTotalCents`, `idempotencyKey` |
 | Service | `placeOrder()`: one transaction. Derive planet from division. Read current prices and delivery charge. Merge duplicate lines. Check 1 to 20 units. Compare total with `expectedTotalCents`. Insert order (PLACED, PAID), items with snapshots, first event |
@@ -151,7 +151,7 @@ This phase solves pain 1 (orders get lost) and pain 2 (customers do not know whe
 
 | Layer | Work |
 |---|---|
-| Schema | `trips`, trip code sequence **[C3]**, one-open-trip index. Migration |
+| Schema | Already migrated: `trips` and the trip triggers (`database.md` 3.8). Turn its checks into tests |
 | Pure logic | `trips/status.ts`: trip status machine. `trips/stops.ts`: group a trip's orders into stops by division |
 | Service | `getMyOpenTrip()`, `createTrip(planetId)`, `listAvailableOrders(tripId)`, `addOrderToTrip`, `removeOrderFromTrip`, `cancelTrip`. Race-safe add as in `plan.md` 7.4 |
 | Actions | One per mutation |
@@ -162,7 +162,8 @@ This phase solves pain 1 (orders get lost) and pain 2 (customers do not know whe
 - [ ] A captain with no open trip sees every planet with its fuel cost and number of waiting orders.
 - [ ] Starting a trip freezes the planet's fuel cost on the trip.
 - [ ] Available orders are ACCEPTED, not in any trip, and for the trip's planet only.
-- [ ] Each available order shows units, sector, division and its delivery charges. No product price, no making cost, no customer name **[C7]**.
+- [ ] Each available order shows its products with units (for example "3 Water, 1 Food"), sector, division and delivery charges (D29).
+- [ ] A captain never sees product price, making cost or the customer name, also not in the page data.
 - [ ] Adding an order moves it to ASSIGNED, raises the capacity bar, and adds the timeline event "Assigned to a ship".
 - [ ] Orders that do not fit in the remaining space have a disabled Add button with the reason.
 - [ ] Removing an order moves it back to ACCEPTED, lowers the bar, adds the event "Removed from trip", and it is available to all captains again.
@@ -194,6 +195,7 @@ This phase solves pain 1 (orders get lost) and pain 2 (customers do not know whe
 - Service: two parallel `addOrderToTrip` calls for one order → one success, one conflict, final state consistent.
 - Service: parallel adds never exceed 20 units.
 - Service: second open trip fails. Wrong planet. Wrong captain. After-load changes fail.
+- Service: captain order DTOs contain product names and units, and no price, cost or customer keys at any depth.
 - DB: `total_units` over 20 rejected. `trip_id` with status PLACED rejected.
 
 ---
@@ -248,7 +250,7 @@ This phase solves pain 1 (orders get lost) and pain 2 (customers do not know whe
 |---|---|
 | Service | `markStopAtSector(tripId, divisionId)`, `markStopDelivered(tripId, divisionId)`. The second sets `delivered_at` and, if no undelivered order remains, sets the trip to COMPLETED in the same transaction |
 | Actions | One per step |
-| UI | `/captain/trip` for LANDED: one card per stop (sector, division, orders, units) with its own next-step button. Stops in any order (D25). After the last stop: "Trip completed" summary and "Start a new trip" |
+| UI | `/captain/trip` for LANDED: one card per stop (sector, division, orders with their products and units) with its own next-step button. Stops in any order (D25). After the last stop: "Trip completed" summary and "Start a new trip" |
 
 ### Acceptance criteria
 

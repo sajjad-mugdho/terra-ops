@@ -100,15 +100,17 @@ Counting rule for every slice here (D11): money counts only when delivered. Orde
 
 | Layer | Work |
 |---|---|
-| Service | `reports/service.ts`: `getCompanyTotals(range)`, `getPlanetProductTable(range)`, `getPipeline()`. SQL `SUM` and `GROUP BY` on snapshot columns |
+| Service | `reports/service.ts`: `getCompanyTotals(range)`, `getPlanetProfitSummary(range)`, `getPlanetProductTable(range)`, `getPipeline()`. SQL `SUM` and `GROUP BY` on snapshot columns |
 | Pure logic | `reports/range.ts`: parse and validate a date range, default last 30 days **[C5]** |
-| UI | `/admiral`: date range filter in the URL. Four totals: units delivered, revenue, making cost, profit. Table grouped by planet with product rows and a planet subtotal. Pipeline: order count per status |
+| UI | `/admiral`: date range filter in the URL. Four totals: units delivered, revenue, making cost, profit. "Profit by planet" summary: one row per planet with units, revenue, cost, profit, sorted by profit (D32). Table grouped by planet with product rows and a planet subtotal. Pipeline: order count per status |
 
 ### Acceptance criteria
 
 - [ ] Totals and the table count only DELIVERED orders with `delivered_at` inside the range.
 - [ ] Revenue = product amount only. Delivery charges are not company revenue.
-- [ ] Each planet shows a subtotal. The grand total equals the sum of subtotals.
+- [ ] "Profit by planet" lists all 7 planets, highest profit first. The most and least profitable planet can be read without scrolling.
+- [ ] The planet × product table lists planets in the same order as the summary.
+- [ ] Each planet shows a subtotal equal to its summary row. The grand total equals the sum of subtotals.
 - [ ] Every planet appears, even with zero deliveries.
 - [ ] The pipeline shows the current count for all 9 statuses and ignores the date range.
 - [ ] Changing a price today does not change any number for past deliveries.
@@ -118,7 +120,9 @@ Counting rule for every slice here (D11): money counts only when delivered. Orde
 
 | Case | Expected |
 |---|---|
-| Planet with no deliveries | Row of zeros |
+| Planet with no deliveries | Row of zeros, at the bottom of the summary |
+| Two planets with equal profit | Ordered by name, so the order is stable |
+| A planet with negative profit | Shown last, in red |
 | No deliveries at all in the range | Zeros and an empty-state note |
 | Start date after end date | Field error. Previous result stays |
 | Invalid date in the URL | Falls back to the default range |
@@ -131,6 +135,7 @@ Counting rule for every slice here (D11): money counts only when delivered. Orde
 ### Tests
 
 - Service: seed a small known set, assert exact totals and each table cell.
+- Service: summary order (profit descending, ties by name) and summary rows equal table subtotals.
 - Service: range boundaries. Rejected and in-transit excluded. Zero planet present.
 - Service: change a price, totals unchanged.
 - Unit: range parsing.
@@ -139,21 +144,23 @@ Counting rule for every slice here (D11): money counts only when delivered. Orde
 
 ## Slice 2.4 · Manager purchases report
 
-**Outcome:** a manager sees what their planet bought: quantities, product amounts, delivery charges. No profit.
+**Outcome:** a manager sees what their planet bought: quantities, product amounts, delivery charges. No profit. Delivered and on-the-way purchases are shown side by side (D31).
 
 ### Build
 
 | Layer | Work |
 |---|---|
 | Service | `getPlanetPurchases(range)`, `getPlanetInProgress()`, both scoped to the manager's planet. Selects only allowed columns |
-| UI | `/manager/report`: date range. Table per product: units, product amount, delivery charges, total paid, with a total row. "In progress" block: units and amount of orders that are accepted but not yet delivered |
+| UI | `/manager/report`: date range. Table per product: units, product amount, delivery charges, total paid, with a total row. Second table "In progress" with the same columns, for orders accepted but not yet delivered |
 
 ### Acceptance criteria
 
 - [ ] Only the manager's own planet is included.
 - [ ] Per product: units, product amount, delivery charges, total paid. Total paid = the two amounts added.
 - [ ] The manager's total for a range equals the Admiral's revenue plus delivery charges for that planet and range.
-- [ ] "In progress" covers ACCEPTED to AT_SECTOR. PLACED and REJECTED are not included.
+- [ ] "In progress" covers ACCEPTED to AT_SECTOR, with the same four columns per product and a total row. PLACED and REJECTED are not included.
+- [ ] "In progress" ignores the date range. It shows the present.
+- [ ] An order moves from the "In progress" table to the "Delivered" table when it is delivered, and is never in both.
 - [ ] Making cost and profit do not exist in the response data at all.
 
 ### Edge cases
@@ -161,7 +168,8 @@ Counting rule for every slice here (D11): money counts only when delivered. Orde
 | Case | Expected |
 |---|---|
 | No deliveries in range | Zeros and an empty-state note |
-| A product never bought | Row of zeros |
+| A product never bought | Row of zeros in both tables |
+| Nothing on the way | "In progress" shows zeros and a short note |
 | A planet ID added to the URL or request | Ignored. The planet always comes from the session |
 | Same range cases as 2.3 | Same results |
 
