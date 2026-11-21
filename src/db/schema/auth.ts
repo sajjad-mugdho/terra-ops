@@ -1,5 +1,5 @@
-import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { pgTable, text, timestamp, boolean, index, check } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -13,7 +13,10 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   role: text("role").default("customer").notNull(),
-});
+}, (t) => [
+  // Hand-added: re-add after running `npm run auth:schema`.
+  check("user_role_valid", sql`${t.role} in ('admiral', 'manager', 'captain', 'customer')`),
+]);
 
 export const session = pgTable(
   "session",
