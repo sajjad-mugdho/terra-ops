@@ -8,7 +8,9 @@ Lets people sign in, lets customers sign up, and tells every other feature who i
 
 | File | Holds |
 |---|---|
-| `features/auth/session.ts` | `getCurrentUser`, `requireUser`, `requireRole` |
+| `features/auth/session.ts` | `getCurrentUser`, `requireUser`, `requireRole`, `requireManagerPlanet` |
+| `features/auth/service.ts` | `signIn`, `signUp`, `demoLogin`, `signOut`. The only code that calls Better Auth to change a session |
+| `features/auth/guards.ts` | `requirePageRole`, `redirectIfSignedIn`: friendly redirects for layouts and pages |
 | `features/auth/roles.ts` | Role list, role home URLs |
 | `features/auth/demo-users.ts` | The seeded demo accounts (also read by the seed) |
 | `features/auth/schemas.ts` | Sign-in and sign-up schemas |
@@ -51,7 +53,7 @@ Role homes:
 
 | Function | Returns | Throws |
 |---|---|---|
-| `getCurrentUser()` | `{ id, name, email, role, planetId }` or `null`. `planetId` is not a user column: for a manager it is read from `planets.manager_id`, for everyone else it is `null` | — |
+| `getCurrentUser()` | `{ id, name, email, role, planetId, planetName }` or `null`. The planet is not a user column: for a manager it is read from `planets.manager_id`, for everyone else both are `null` | — |
 | `requireManagerPlanet()` | `{ user, planetId }` | `UNAUTHORIZED`, `FORBIDDEN` (not a manager, or a manager no planet points to) |
 | `requireUser()` | User | `UNAUTHORIZED` |
 | `requireRole(...roles)` | User | `UNAUTHORIZED`, `FORBIDDEN` |

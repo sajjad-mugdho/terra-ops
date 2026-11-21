@@ -444,10 +444,10 @@ What it does · live link · demo users · 2-minute tour per role · how to run 
 
 | # | Item | Proposed |
 |---|---|---|
-| C1 | Seed numbers for planets and products | Tables in section 11 |
-| C2 | Demo password and email pattern | `terra-demo-2026`, `role.planet@terra.demo` |
+| C1 | Seed numbers for planets and products | Confirmed: Tables in section 11 |
+| C2 | Demo password and email pattern | Confirmed: `terra-demo-2026`, `role.planet@terra.demo` |
 | C3 | Order and trip codes | `ORD-1001`, `TRP-101` |
-| C4 | Currency symbol | `$` |
+| C4 | Currency symbol | Confirmed: `$` |
 | C5 | Default report date range | Last 30 days |
 | C6 | Waiting-time highlight | After 3 days |
 | C7 | Captain sees customer name | Settled: no (D29) |

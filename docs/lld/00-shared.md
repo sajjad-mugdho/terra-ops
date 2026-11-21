@@ -50,7 +50,7 @@ flowchart LR
 | `formatMoney(cents)` | `1250` → `$12.50` | Negative → `-$15.00` |
 | `parseDollarsToCents(text)` | `"12.5"` → `1250` | Works on the string. Rejects negatives, 3+ decimals, non-numbers |
 | `formatUtc(date)` | Date → `21 Nov 2026, 14:05 UTC` | Always UTC, always labelled |
-| `formatDuration(from, to)` | → `2d 5h` | Under a minute → `Just now` |
+| `formatDuration(from, to)` | → `1d 2h`, `1h 5m`, `5m` | Under a minute → `0m` |
 | `addDays(date, n)` | → Date | Used for ETA |
 | `parsePage(value)` | `"abc"` → `1` | Clamps to ≥ 1 |
 | `pageWindow(page, total)` | → `{ offset, limit, pageCount }` | 20 rows per page |

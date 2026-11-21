@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Terra Supply Co.",
+  title: { default: "Terra Supply Co.", template: "%s · Terra Supply Co." },
   description: "Orders, trips and profit for every planet.",
 };
 

@@ -116,6 +116,8 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D31 | Manager report | Two tables with the same columns per product (units, product amount, delivery charges, total paid): "Delivered" in the date range, and "In progress". D11 is unchanged |
 | D32 | Profit by planet | The Admiral dashboard starts with a "Profit by planet" summary sorted by profit. The planet × product table lists planets in the same order |
 | D33 | Database design | As in `database.md`. Manager on `planets.manager_id` (no planet column on `user`). `number` identity instead of text codes. Composite foreign keys for planet agreement. Triggers make history append-only and check each trip at commit (units, status agreement, completion). Role behind a foreign key is not checked by the database: seed only |
+| D34 | Seed values and demo accounts | Confirmed C1, C2, C4: the planet and product numbers in `plan.md` §11, password `terra-demo-2026`, emails `admiral@`, `manager.<planet>@`, `captain1..3@`, `customer1..4@terra.demo`, currency `$` |
+| D35 | Seed and test folders | `src/seed/` holds the seed (it needs the demo list from `features/auth`, so it cannot live in `db/`). `src/test/` holds test setup. Tests use the database `terra_ops_test`, created and migrated by the test run |
 
 ## Changes vs project.md
 
@@ -137,13 +139,23 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | Phase | Status |
 |---|---|
 | Setup | Done |
-| 0 to 6 | Not started |
+| 0 Foundation | Slices 0.1 to 0.5 done locally. 0.6 (live deploy) waits for the Neon and Vercel projects |
+| 1 to 6 | Not started |
 
 ## Open questions
 
-- Confirmations C1 to C10 in `plan.md` §15.
+- Confirmations C5, C6, C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled).
+- Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26).
 
 ## Changelog
+
+### 2026-11-21 · Phase 0, slices 0.1 to 0.5
+
+- 0.1: `lib/errors`, `action-result`, `money`, `dates` with unit tests. Test database set up by the test run. CI workflow added.
+- 0.2: seed (`npm run db:seed -- --yes`) for users, 7 planets, 14 sectors, 34 divisions, 5 products. `listLocationTree`, `getDivisionWithPlanet`, `listProducts`.
+- 0.3: session helpers, `proxy.ts`, role layouts, app shell, login. 0.4: customer sign-up. 0.5: demo login for the 15 seeded accounts.
+- Checked by hand over HTTP: every redirect in the slice tables, login, wrong password, sign-up, duplicate email, role in the sign-up body, demo login, log out. 84 automated tests.
+- Not done: 0.6 live deploy. Browser click-through on a real screen is still to do.
 
 ### 2026-11-21 · Database migrated
 

@@ -1,8 +1,8 @@
-export default function Home() {
-  return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-2 p-8">
-      <h1 className="text-2xl font-semibold">Terra Supply Co.</h1>
-      <p className="text-muted-foreground">Orders, trips and profit for every planet.</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+import { ROLE_HOME } from "@/features/auth/roles";
+import { getCurrentUser } from "@/features/auth/session";
+
+export default async function Home() {
+  const user = await getCurrentUser();
+  redirect(user ? ROLE_HOME[user.role] : "/login");
 }
