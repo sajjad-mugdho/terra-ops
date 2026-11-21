@@ -11,15 +11,18 @@ import { formatMoney } from "@/lib/money";
 import { acceptOrderAction, rejectOrderAction } from "../actions";
 import type { QueueOrder } from "../service";
 import { orderCode } from "../status";
+import type { Waiting } from "../waiting";
+import { WaitingTime } from "./waiting-time";
 
-export function QueueCard({ order }: { order: QueueOrder }) {
+// waiting is worked out on the server, so the text is the same before and after hydration.
+export function QueueCard({ order, waiting }: { order: QueueOrder; waiting: Waiting | null }) {
   const [accepted, acceptAction] = useActionState(acceptOrderAction, null);
   const [rejected, rejectAction] = useActionState(rejectOrderAction, null);
   const dialog = useRef<HTMLDialogElement>(null);
   const reasonErrors = rejected && !rejected.ok ? rejected.fieldErrors?.reason : undefined;
 
   return (
-    <Card>
+    <Card className={waiting?.overdue ? "border-destructive/40" : undefined}>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center justify-between gap-2">
           <span>{orderCode(order.number)}</span>
@@ -30,6 +33,14 @@ export function QueueCard({ order }: { order: QueueOrder }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-sm">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          {waiting && (
+            <>
+              <dt className="text-muted-foreground">Waiting</dt>
+              <dd>
+                <WaitingTime waiting={waiting} />
+              </dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Customer</dt>
           <dd>{order.customerName}</dd>
           <dt className="text-muted-foreground">Deliver to</dt>

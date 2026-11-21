@@ -76,7 +76,7 @@ Messages:
 
 | Function | Returns | Throws |
 |---|---|---|
-| `listAllOrders({ status, planetId })` | Every order with planet and customer. Paging, search and sort come in Phase 4 | — |
+| `listAllOrders({ status, planetId, overdue, sort })` | Every order with planet, customer and `waitingSince`. `overdue` keeps orders waiting over 3 days. `sort: "waiting"` puts the longest waiting first. Paging and search come in Phase 4 | — |
 | `getAnyOrder(id)` | Order detail plus making cost per line, profit, and the actor of each timeline step | `NOT_FOUND` |
 
 **Order detail fields**
@@ -104,8 +104,11 @@ Messages:
 | `canTransition(from, to)` | Is this status change allowed |
 | `customerLabel(status)` | Text the customer sees |
 | `etaText(order, trip, planet)` | "About N days after lift-off" / date / "Delivered on …" |
-| `waitingSince(order)` | Start of waiting, or null |
-| `isOverdue(order, now)` | Waiting more than 3 days |
+| `waitingSince(order)` | Start of waiting (PLACED: `created_at`, ACCEPTED: `accepted_at`), or null |
+| `isOverdue(since, now)` | Waiting strictly more than 3 days (D46) |
+| `waitingLabel(since, now)` | "Just now" under a minute, else "Waiting 2d 5h" |
+| `waitingOf(since, now)` | `{ label, overdue }` for a list row, or null |
+| `parseOrderSort(value)` | `newest` (default) or `waiting` from the URL |
 
 ## 6. Flow
 
@@ -148,3 +151,5 @@ Both decisions are one statement: `UPDATE orders ... WHERE id AND planet_id = mi
 - Every status change adds exactly one event, in the same transaction.
 - The idempotency key is looked up per customer, before prices are compared, so a resend after a price change still returns the first order (D36).
 - Until Phase 4 the list functions take no arguments and return every row (D40).
+- `waitingSince` is in the manager and Admiral list DTOs (`QueueOrder`, `PlanetOrderRow`) only. Customer DTOs never carry it.
+- Pages work out the waiting text on the server with one `now` per request and pass it down, so a Client Component never reads the clock.

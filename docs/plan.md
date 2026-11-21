@@ -449,7 +449,7 @@ What it does · live link · demo users · 2-minute tour per role · how to run 
 | C3 | Order and trip codes | `ORD-1001`, `TRP-101` |
 | C4 | Currency symbol | Confirmed: `$` |
 | C5 | Default report date range | Used as proposed: last 30 days (D41) |
-| C6 | Waiting-time highlight | After 3 days |
+| C6 | Waiting-time highlight | After 3 days. Used as proposed (D46) |
 | C7 | Captain sees customer name | Settled: no (D29) |
 | C8 | Where migrations run for production | From the local machine, by command |
 | C9 | Video walkthrough | Yes, 3 to 5 minutes |

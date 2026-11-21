@@ -15,7 +15,7 @@ A captain opens a trip to one planet, fills it with accepted orders (max 20 unit
 | `features/trips/schemas.ts` | ID schemas |
 | `features/trips/service.ts` | 17 functions |
 | `features/trips/actions.ts` | 9 actions |
-| `features/trips/components/` | `PlanetChooser`, `TripBuilder`, `CapacityBar`, `OrderLines`, `TripSteps`, `StopCard`. Later phases: `ProfitSummary`, `TripTable` |
+| `features/trips/components/` | `PlanetChooser`, `TripBuilder`, `CapacityBar`, `OrderLines`, `TripSteps`, `StopCard`, `TripTable`, `TripOverview`, `ProfitSummary` (holds `LossWarning`) |
 
 ## 3. Data it owns
 
@@ -92,7 +92,9 @@ Delivery actions also revalidate the customer's tracking page and the reports.
 
 **Trip detail fields**
 
-`id, number, planet, status, totalUnits, fuelCostCents, earningsCents, expectedProfitCents, unitsToBreakEven, timestamps, orders[], stops[]`
+`id, number, planet, status, totalUnits, fuelCostCents, timestamps, orders[], stops[]`
+
+`getMyOpenTrip()` returns `OpenTrip`: the trip detail plus `earningsCents, expectedProfitCents, unitsToBreakEven` (D48). `unitsToBreakEven` is 0 when the fuel is covered and null when the space left cannot cover it.
 
 Each stop: `{ divisionId, sector, division, orders: [{ number, items: [{ product, units }] }], units, state }` where state is `pending`, `at_sector` or `delivered`.
 
@@ -104,8 +106,10 @@ Each stop: `{ divisionId, sector, division, orders: [{ number, items: [{ product
 |---|---|
 | `canTripTransition(from, to)` | Is this trip status change allowed |
 | `groupStops(orders)` | Orders → stops by division, with each stop's state |
-| `expectedProfit(orders, fuelCost)` | Earnings − fuel |
-| `unitsToBreakEven(…)` | Units still needed, or "cannot cover fuel" |
+| `tripEarningsCents(orders)` | Sum of the orders' frozen delivery charges |
+| `expectedProfitCents(orders, fuelCost)` | Earnings − fuel |
+| `unitsToBreakEven({ earningsCents, fuelCostCents, unitChargeCents, freeUnits })` | Units still needed, 0, or null when the space left cannot cover the fuel |
+| `breakEvenText(units)` | "N more units to cover fuel", or the "full ship cannot cover" message |
 
 ## 6. Flow
 
@@ -150,5 +154,5 @@ flowchart TD
 - No time gate: a captain can mark Landed at any moment after lift-off.
 - Remove and cancel also start with the locking `SELECT`. Only add starts with `UPDATE trips`, because its `WHERE` is the capacity check.
 - The last `markStopDeliveredAction` redirects to `/captain/trip?completed=<tripId>`. The page reads that trip with `getMyTrip` and shows the "Trip completed" summary above the planet list.
-- Built in Phase 1: the 12 building and flying functions plus `getMyTrip`. Built in Phase 2: `listMyTrips`, `getMyTripRow`, `listAllTrips`, `getAnyTrip`. Expected profit while building and the waiting fields come in Phase 3.
+- Built in Phase 1: the 12 building and flying functions plus `getMyTrip`. Built in Phase 2: `listMyTrips`, `getMyTripRow`, `listAllTrips`, `getAnyTrip`. Built in Phase 3: expected profit on `getMyOpenTrip`, `unitsToCoverFuel` on `listPlanetsForTrip`, `waitingSince` on `listAvailableOrders`.
 - Trip earnings are summed in SQL from the frozen delivery charges (`tripEarned`). A cancelled trip has profit zero (D43).

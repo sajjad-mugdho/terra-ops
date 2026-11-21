@@ -1,15 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { orders, planets, trips } from "@/db/schema";
 import { getMyOrder, rejectOrder } from "@/features/orders/service";
+import { updatePlanetCharges } from "@/features/settings/service";
 import { seedReference } from "@/seed/reference";
 import {
   acceptAs,
   acceptedWater,
   ADMIRAL,
   ALL_ACTORS,
+  backdate,
   CAPTAIN,
   clearOrders,
   CUSTOMER,
@@ -24,6 +26,7 @@ import {
   placeWater,
   planetId,
   planTrip,
+  resetSettings,
   timeline,
   VENUS_D1,
   VENUS_MANAGER,
@@ -197,6 +200,7 @@ describe("listAvailableOrders", () => {
       items: [{ product: "Water", units: 3 }],
       totalUnits: 3,
       deliveryChargesCents: 1500,
+      waitingSince: (await orderRow(free.id)).acceptedAt,
       fits: true,
     });
   });
@@ -233,7 +237,9 @@ describe("listAvailableOrders", () => {
     const keys = deepKeys(data);
     expect(keys).toContain("product");
     expect(keys).toContain("units");
-    expect(keys.filter((key) => /price|makingcost|profit|customer|total(?!Units)cents/i.test(key))).toEqual([]);
+    // expectedProfitCents is the captain's own trip profit (slice 3.1), not company profit.
+    const hidden = keys.filter((key) => /price|makingcost|profit|customer|total(?!Units)cents/i.test(key));
+    expect(hidden).toEqual(["expectedProfitCents"]);
     expect(JSON.stringify(data)).not.toContain("Mira Chen");
   });
 });
@@ -1044,5 +1050,178 @@ describe("Admiral trips", () => {
     await expect(markStopDelivered(venus, await VENUS_D1())).rejects.toMatchObject(forbidden);
     switchTo(OTHER_CAPTAIN);
     expect((await getMyOpenTrip())?.status).toBe("PLANNING");
+  });
+});
+
+describe("expected trip profit", () => {
+  // Mars: delivery charge $5 a unit, fuel $40.
+  const money = async () => {
+    const trip = await getMyOpenTrip();
+    return [trip?.earningsCents, trip?.expectedProfitCents, trip?.unitsToBreakEven];
+  };
+
+  async function setMars(deliveryChargeCents: number, fuelCostCents: number) {
+    switchTo(ADMIRAL);
+    await updatePlanetCharges(await planetId("Mars"), { deliveryChargeCents, fuelCostCents });
+  }
+
+  afterEach(resetSettings);
+
+  it("starts an empty trip at minus the fuel cost, with the units that cover it", async () => {
+    await marsTrip();
+    expect(await getMyOpenTrip()).toMatchObject({
+      totalUnits: 0,
+      fuelCostCents: 4000,
+      earningsCents: 0,
+      expectedProfitCents: -4000,
+      unitsToBreakEven: 8,
+    });
+  });
+
+  it("follows every add and remove: loss, exactly zero, profit, loss again", async () => {
+    const small = await acceptedWater(3);
+    const middle = await acceptedWater(5);
+    const extra = await acceptedWater(2);
+    const tripId = await tripWith(small.id);
+    expect(await money()).toEqual([1500, -2500, 5]);
+
+    await addOrderToTrip(tripId, middle.id);
+    expect(await money()).toEqual([4000, 0, 0]);
+
+    await addOrderToTrip(tripId, extra.id);
+    expect(await money()).toEqual([5000, 1000, 0]);
+
+    await removeOrderFromTrip(tripId, middle.id);
+    expect(await money()).toEqual([2500, -1500, 3]);
+  });
+
+  it("uses each order's own frozen charge, and today's charge for the units still needed", async () => {
+    const before = await acceptedWater(3);
+    await setMars(700, 4000);
+    const after = await placeItems({ Water: 2 }, await MARS_D7());
+    await acceptAs(MARS_MANAGER, after.id);
+
+    await tripWith(before.id, after.id);
+    // 3 × $5 + 2 × $7 = $29. Missing $11, at $7 a unit: 2 units.
+    expect(await money()).toEqual([2900, -1100, 2]);
+  });
+
+  it("keeps the fuel cost of the trip when the planet's fuel cost changes later", async () => {
+    const order = await acceptedWater(3);
+    await tripWith(order.id);
+    await setMars(500, 9900);
+    switchTo(CAPTAIN);
+    expect(await money()).toEqual([1500, -2500, 5]);
+  });
+
+  it("says the fuel cannot be covered when a full ship is not enough", async () => {
+    // $101 of fuel at $5 a unit needs 21 units.
+    await setMars(500, 10100);
+    await marsTrip();
+    expect(await money()).toEqual([0, -10100, null]);
+  });
+
+  it("says the fuel cannot be covered when the space left is too small", async () => {
+    // 18 units sold at $3 earn $54. Then the charge goes to $5 and the fuel to $99.
+    await setMars(300, 4000);
+    const cheap = await placeItems({ Water: 18 }, await MARS_D7());
+    await acceptAs(MARS_MANAGER, cheap.id);
+    await setMars(500, 9900);
+
+    // A full ship at $5 would cover $99, but $45 is missing and only 2 units of space are left.
+    await tripWith(cheap.id);
+    expect(await money()).toEqual([5400, -4500, null]);
+  });
+
+  it("does not divide by zero when the delivery charge is 0", async () => {
+    await setMars(0, 4000);
+    const free = await placeItems({ Water: 4 }, await MARS_D7());
+    await acceptAs(MARS_MANAGER, free.id);
+    await tripWith(free.id);
+    expect(await money()).toEqual([0, -4000, null]);
+  });
+
+  it("lets a captain load a loss trip, and keeps showing the loss", async () => {
+    const order = await acceptedWater(3);
+    const tripId = await tripWith(order.id);
+    await markLoaded(tripId);
+    expect(await getMyOpenTrip()).toMatchObject({ status: "LOADED", expectedProfitCents: -2500 });
+  });
+
+  it("shows the same numbers as the trip history, before and after the trip completes", async () => {
+    const first = await acceptedWater(10);
+    const second = await acceptedWater(8, await MARS_T1());
+    const tripId = await tripWith(first.id, second.id);
+
+    const expected = await getMyOpenTrip();
+    expect(expected).toMatchObject({ earningsCents: 9000, expectedProfitCents: 5000 });
+    expect(await getMyTripRow(tripId)).toMatchObject({ earningsCents: 9000, profitCents: 5000 });
+
+    await flyTrip(CAPTAIN, tripId);
+    expect(await getMyOpenTrip()).toBeNull();
+    expect(await getMyTripRow(tripId)).toMatchObject({
+      status: "COMPLETED",
+      earningsCents: expected?.earningsCents,
+      fuelCostCents: expected?.fuelCostCents,
+      profitCents: expected?.expectedProfitCents,
+    });
+    switchTo(ADMIRAL);
+    expect(await getAnyTrip(tripId)).toMatchObject({ earningsCents: 9000, profitCents: 5000 });
+  });
+
+  it("shows a captain only the money of their own open trip", async () => {
+    const order = await acceptedWater(3);
+    await tripWith(order.id);
+    switchTo(OTHER_CAPTAIN);
+    expect(await getMyOpenTrip()).toBeNull();
+  });
+
+  it("tells for every planet how many units cover the fuel", async () => {
+    switchTo(CAPTAIN);
+    const list = await listPlanetsForTrip();
+    const units = Object.fromEntries(list.map((planet) => [planet.name, planet.unitsToCoverFuel]));
+    expect(units).toEqual({ Mercury: 8, Venus: 9, Mars: 8, Jupiter: 13, Saturn: 14, Uranus: 15, Neptune: 16 });
+
+    await setMars(0, 4000);
+    switchTo(CAPTAIN);
+    expect((await listPlanetsForTrip()).find((planet) => planet.name === "Mars")?.unitsToCoverFuel).toBeNull();
+  });
+});
+
+describe("waiting time for captains", () => {
+  it("counts an available order from when the planet accepted it", async () => {
+    const order = await acceptedWater(3);
+    await backdate(order.id, 6 * 1440, 5 * 1440);
+    const tripId = await marsTrip();
+
+    const [available] = await listAvailableOrders(tripId);
+    expect(available.waitingSince).toEqual((await orderRow(order.id)).acceptedAt);
+    expect(Date.now() - available.waitingSince.getTime()).toBeGreaterThan(5 * 86_400_000 - 60_000);
+    expect(Date.now() - available.waitingSince.getTime()).toBeLessThan(5 * 86_400_000 + 60_000);
+  });
+
+  it("keeps counting from the first accept after an order is removed from a trip", async () => {
+    const order = await acceptedWater(3);
+    await backdate(order.id, 6 * 1440, 5 * 1440);
+    const accepted = (await orderRow(order.id)).acceptedAt;
+
+    const tripId = await tripWith(order.id);
+    expect(await listAvailableOrders(tripId)).toEqual([]);
+    await removeOrderFromTrip(tripId, order.id);
+    expect((await listAvailableOrders(tripId))[0].waitingSince).toEqual(accepted);
+
+    await addOrderToTrip(tripId, order.id);
+    await cancelTrip(tripId);
+    const again = await marsTrip();
+    expect((await listAvailableOrders(again))[0].waitingSince).toEqual(accepted);
+  });
+
+  it("lists the longest waiting order first", async () => {
+    const newer = await acceptedWater(1);
+    const older = await acceptedWater(2);
+    await backdate(newer.id, 3000, 100);
+    await backdate(older.id, 2000, 1500);
+    const tripId = await marsTrip();
+    expect((await listAvailableOrders(tripId)).map((order) => order.id)).toEqual([older.id, newer.id]);
   });
 });

@@ -12,11 +12,11 @@ export default async function ManagerOrdersPage() {
 
   return (
     <>
-      <PageHeader title="All orders" description="Every order for your planet, in any status. Newest first." />
+      <PageHeader title="All orders" description="Every order for your planet, in any status. Newest first. Waiting time counts from placed until you decide, then from accepted until a captain takes it." />
       {orders.length === 0 ? (
         <EmptyState title="No orders yet" description="Orders for your planet appear here." />
       ) : (
-        <OrderTable rows={orders} basePath="/manager/orders" />
+        <OrderTable rows={orders} basePath="/manager/orders" now={new Date()} />
       )}
     </>
   );

@@ -19,6 +19,7 @@ import { AppError } from "@/lib/errors";
 import { lineTotalCents, makingCostCents, mergeLines, orderTotals } from "./pricing";
 import type { PlaceOrderInput } from "./schemas";
 import { eventLabel, type OrderStatus, type PaymentStatus } from "./status";
+import { type OrderSort, OVERDUE_DAYS, waitingSince } from "./waiting";
 
 export type Destination = { planet: string; sector: string; division: string };
 
@@ -33,7 +34,8 @@ export type OrderListRow = {
   createdAt: Date;
 };
 
-export type PlanetOrderRow = OrderListRow & { customerName: string };
+// waitingSince is for the people who can act on the order. Customers never get it.
+export type PlanetOrderRow = OrderListRow & { customerName: string; waitingSince: Date | null };
 
 export type OrderLine = {
   productName: string;
@@ -71,7 +73,12 @@ export type OrderDetail = {
 
 export type PlanetOrderDetail = OrderDetail & { customerName: string };
 
-export type OrderFilter = { status?: OrderStatus; planetId?: string };
+export type OrderFilter = {
+  status?: OrderStatus;
+  planetId?: string;
+  overdue?: boolean;
+  sort?: OrderSort;
+};
 
 // Admiral only. The one order DTO that carries making cost and profit.
 export type AdmiralOrderDetail = Omit<PlanetOrderDetail, "items" | "timeline"> & {
@@ -91,6 +98,7 @@ export type QueueOrder = {
   totalUnits: number;
   totalCents: number;
   createdAt: Date;
+  waitingSince: Date;
 };
 
 const HANDLED = "This order was already handled";
@@ -109,6 +117,12 @@ const paid = db
   .from(orderItems)
   .groupBy(orderItems.orderId)
   .as("paid");
+
+// Same rule as waitingSince() in ./waiting, for filters and sorting in SQL.
+const waitingStart = sql`case ${orders.status} when 'PLACED' then ${orders.createdAt} when 'ACCEPTED' then ${orders.acceptedAt} end`;
+
+// Waiting for more than OVERDUE_DAYS. The dashboard count and the filtered list share it.
+export const overdueOrders = sql`${waitingStart} < now() - make_interval(days => ${OVERDUE_DAYS})`;
 
 export async function placeOrder(input: PlaceOrderInput): Promise<{ id: string; number: number }> {
   const customer = await requireRole("customer");
@@ -174,7 +188,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<{ id: string; 
   });
 }
 
-type Listed = { order: OrderListRow; customerName: string };
+type Listed = { order: OrderListRow; customerName: string; waitingSince: Date | null };
 
 async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[]> {
   const rows = await db
@@ -189,6 +203,7 @@ async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[
       status: orders.status,
       paymentStatus: orders.paymentStatus,
       createdAt: orders.createdAt,
+      acceptedAt: orders.acceptedAt,
       customerName: user.name,
     })
     .from(orders)
@@ -200,9 +215,10 @@ async function listOrders(where: SQL | undefined, order: SQL[]): Promise<Listed[
     .where(where)
     .orderBy(...order);
 
-  return rows.map(({ planet, sector, division, customerName, ...row }) => ({
+  return rows.map(({ planet, sector, division, customerName, acceptedAt, ...row }) => ({
     order: { ...row, destination: { planet, sector, division } },
     customerName,
+    waitingSince: waitingSince({ status: row.status, createdAt: row.createdAt, acceptedAt }),
   }));
 }
 
@@ -327,6 +343,7 @@ export async function listQueue(): Promise<QueueOrder[]> {
     totalUnits: order.totalUnits,
     totalCents: order.totalCents,
     createdAt: order.createdAt,
+    waitingSince: order.createdAt,
   }));
 }
 
@@ -336,7 +353,7 @@ export async function listPlanetOrders(): Promise<PlanetOrderRow[]> {
     desc(orders.createdAt),
     desc(orders.number),
   ]);
-  return rows.map(({ order, customerName }) => ({ ...order, customerName }));
+  return rows.map(({ order, customerName, waitingSince }) => ({ ...order, customerName, waitingSince }));
 }
 
 export async function getPlanetOrder(id: string): Promise<PlanetOrderDetail> {
@@ -401,10 +418,16 @@ export async function listAllOrders(filter: OrderFilter = {}): Promise<PlanetOrd
     and(
       filter.status ? eq(orders.status, filter.status) : undefined,
       filter.planetId && isUuid(filter.planetId) ? eq(orders.planetId, filter.planetId) : undefined,
+      filter.overdue ? overdueOrders : undefined,
     ),
-    [desc(orders.createdAt), desc(orders.number)],
+    [
+      // Longest waiting first. Orders that do not wait come after, newest first.
+      ...(filter.sort === "waiting" ? [sql`${waitingStart} asc nulls last`] : []),
+      desc(orders.createdAt),
+      desc(orders.number),
+    ],
   );
-  return rows.map(({ order, customerName }) => ({ ...order, customerName }));
+  return rows.map(({ order, customerName, waitingSince }) => ({ ...order, customerName, waitingSince }));
 }
 
 export async function getAnyOrder(id: string): Promise<AdmiralOrderDetail> {

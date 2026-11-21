@@ -2,18 +2,19 @@ import { eq, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { orderEvents, orders, products, settingsChanges, trips, user } from "@/db/schema";
-import { getMyOrder, listQueue } from "@/features/orders/service";
+import { getMyOrder, listAllOrders, listQueue } from "@/features/orders/service";
 import { ORDER_STATUSES, type OrderStatus } from "@/features/orders/status";
 import { defaultRange } from "@/features/reports/range";
 import {
   getCompanyTotals,
   getMyEarnings,
+  getOverdueCount,
   getPipeline,
   getPlanetProductTable,
   getPlanetProfitSummary,
   getPlanetPurchases,
 } from "@/features/reports/service";
-import { listAvailableOrders, listMyTrips } from "@/features/trips/service";
+import { getMyOpenTrip, listAvailableOrders, listMyTrips } from "@/features/trips/service";
 import { TRIP_STATUSES } from "@/features/trips/status";
 import { MARS_D7, placeItems } from "@/test/orders";
 import { signInAll, switchTo } from "@/test/session";
@@ -51,7 +52,7 @@ describe("seedHistory", () => {
   it("creates the same 32 orders on every run, in the listed statuses", async () => {
     expect(await db.$count(orders)).toBe(EXPECTED.orders);
     switchTo(ADMIRAL);
-    expect(await getPipeline()).toEqual(
+    expect((await getPipeline()).map(({ status, count }) => ({ status, count }))).toEqual(
       ORDER_STATUSES.map((status) => ({ status, count: EXPECTED.byStatus[status] })),
     );
   });
@@ -200,6 +201,27 @@ describe("seedHistory", () => {
     const open = (await listMyTrips()).find((trip) => trip.status === "PLANNING");
     const available = await listAvailableOrders(open?.id ?? "");
     expect(available.map((order) => order.fits).sort()).toEqual([false, true]);
+  });
+
+  it("shows the old unpicked orders as overdue, longest waiting first", async () => {
+    switchTo(ADMIRAL);
+    const overdue = await listAllOrders({ overdue: true, sort: "waiting" });
+    expect(overdue.map((order) => [order.destination.planet, order.status, order.totalUnits])).toEqual([
+      ["Uranus", "ACCEPTED", 2],
+      ["Neptune", "ACCEPTED", 1],
+      ["Neptune", "ACCEPTED", 3],
+      // Back from the cancelled trip: it still counts from the first accept.
+      ["Jupiter", "ACCEPTED", 4],
+      ["Uranus", "PLACED", 6],
+    ]);
+    expect(await getOverdueCount()).toEqual({ count: EXPECTED.overdueOrders });
+    expect(overdue).toHaveLength(EXPECTED.overdueOrders);
+  });
+
+  it("gives the planning captain the expected profit of the open trip", async () => {
+    switchTo("captain2@terra.demo");
+    // Venus: 10 units at $3 earn $30, fuel $25.
+    expect(await getMyOpenTrip()).toMatchObject({ status: "PLANNING", earningsCents: 3000, expectedProfitCents: 500, unitsToBreakEven: 0 });
   });
 
   it("continues order numbers above the seeded ones", async () => {

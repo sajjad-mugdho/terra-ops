@@ -3,7 +3,9 @@ import { and, asc, eq, gte, inArray, lt, type SQL, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orders, planets, products, trips } from "@/db/schema";
 import { requireManagerPlanet, requireRole } from "@/features/auth/session";
+import { overdueOrders } from "@/features/orders/service";
 import { ORDER_STATUSES, type OrderStatus } from "@/features/orders/status";
+import { waitingSince } from "@/features/orders/waiting";
 import { tripEarned } from "@/features/trips/service";
 import { byProfitThenName } from "./ranking";
 
@@ -32,7 +34,8 @@ export type PlanetProducts = {
   subtotal: ProfitRow;
 };
 
-export type PipelineRow = { status: OrderStatus; count: number };
+// oldestWaitingSince: start of the longest wait in PLACED or ACCEPTED. null for every other status.
+export type PipelineRow = { status: OrderStatus; count: number; oldestWaitingSince: Date | null };
 
 export type PurchaseRow = {
   units: number;
@@ -172,13 +175,28 @@ export async function getPlanetProductTable(period: Period): Promise<PlanetProdu
 export async function getPipeline(): Promise<PipelineRow[]> {
   await requireRole("admiral");
   const rows = await db
-    .select({ status: orders.status, count: sql<number>`count(*)::int` })
+    .select({
+      status: orders.status,
+      count: sql<number>`count(*)::int`,
+      createdAt: sql<Date>`min(${orders.createdAt})`.mapWith(orders.createdAt),
+      acceptedAt: sql<Date | null>`min(${orders.acceptedAt})`.mapWith(orders.acceptedAt),
+    })
     .from(orders)
     .groupBy(orders.status);
-  return ORDER_STATUSES.map((status) => ({
-    status,
-    count: rows.find((row) => row.status === status)?.count ?? 0,
-  }));
+  return ORDER_STATUSES.map((status) => {
+    const row = rows.find((each) => each.status === status);
+    return {
+      status,
+      count: row?.count ?? 0,
+      oldestWaitingSince: row ? waitingSince(row) : null,
+    };
+  });
+}
+
+// Orders waiting longer than 3 days for a manager or a captain, right now.
+export async function getOverdueCount(): Promise<{ count: number }> {
+  await requireRole("admiral");
+  return { count: await db.$count(orders, overdueOrders) };
 }
 
 // No making cost is selected here, so a manager report has nothing to leak.

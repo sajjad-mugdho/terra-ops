@@ -3,7 +3,7 @@ import { Money } from "@/components/money";
 import { StatusBadge } from "@/components/status-badge";
 import { formatUtc } from "@/lib/dates";
 import type { TripRow } from "../service";
-import { tripCode, tripLabel, tripTone } from "../status";
+import { isOpenTrip, tripCode, tripLabel, tripTone } from "../status";
 
 type Row = TripRow & { captainName?: string };
 
@@ -32,8 +32,9 @@ export function TripTable({ rows, basePath }: Props) {
         <tbody>
           {rows.map((row) => {
             const cancelled = row.status === "CANCELLED";
+            const loss = row.profitCents < 0;
             return (
-              <tr key={row.id} className="border-t">
+              <tr key={row.id} className={loss ? "border-t bg-destructive/5" : "border-t"}>
                 <td className="px-3 py-2 font-medium">
                   <Link href={`${basePath}/${row.id}`} className="underline-offset-4 hover:underline">
                     {tripCode(row.number)}
@@ -42,7 +43,10 @@ export function TripTable({ rows, basePath }: Props) {
                 {withCaptain && <td className="px-3 py-2">{row.captainName}</td>}
                 <td className="px-3 py-2">{row.planet}</td>
                 <td className="px-3 py-2">
-                  <StatusBadge label={tripLabel(row.status)} tone={tripTone(row.status)} />
+                  <span className="flex flex-wrap gap-1">
+                    <StatusBadge label={tripLabel(row.status)} tone={tripTone(row.status)} />
+                    {loss && <StatusBadge label={isOpenTrip(row.status) ? "Expected loss" : "Loss"} tone="danger" />}
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{row.totalUnits}</td>
                 <td className="px-3 py-2 text-right">

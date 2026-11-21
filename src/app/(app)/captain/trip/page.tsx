@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { requirePageRole } from "@/features/auth/guards";
+import { ProfitSummary } from "@/features/trips/components/profit-summary";
 import { PlanetChooser } from "@/features/trips/components/planet-chooser";
 import { StopCard } from "@/features/trips/components/stop-card";
 import { TripBuilder } from "@/features/trips/components/trip-builder";
@@ -61,11 +62,18 @@ export default async function CaptainTripPage({ searchParams }: PageProps<"/capt
     </PageHeader>
   );
 
+  // After loading the orders are fixed, so nothing more can be added to cover the fuel.
+  const money = (
+    <div className="mb-4">
+      <ProfitSummary trip={{ ...trip, unitsToBreakEven: 0 }} />
+    </div>
+  );
+
   if (trip.status === "PLANNING") {
     return (
       <>
         {header}
-        <TripBuilder trip={trip} available={await listAvailableOrders(trip.id)} />
+        <TripBuilder trip={trip} available={await listAvailableOrders(trip.id)} now={new Date()} />
       </>
     );
   }
@@ -74,6 +82,7 @@ export default async function CaptainTripPage({ searchParams }: PageProps<"/capt
     return (
       <>
         {header}
+        {money}
         <p className="mb-4 text-sm text-muted-foreground">
           Deliver the stops in any order. The trip completes when the last one is delivered.
         </p>
@@ -89,6 +98,7 @@ export default async function CaptainTripPage({ searchParams }: PageProps<"/capt
   return (
     <>
       {header}
+      {money}
       <TripSteps trip={trip} />
     </>
   );

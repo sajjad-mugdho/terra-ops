@@ -8,12 +8,15 @@ import {
   markLoadedAction,
   removeOrderFromTripAction,
 } from "../actions";
-import type { AvailableOrder, TripDetail } from "../service";
+import type { AvailableOrder, OpenTrip } from "../service";
 import { TRIP_CAPACITY } from "../status";
 import { CapacityBar } from "./capacity-bar";
 import { OrderLines } from "./order-lines";
+import { LossWarning, ProfitSummary } from "./profit-summary";
 
-export function TripBuilder({ trip, available }: { trip: TripDetail; available: AvailableOrder[] }) {
+type Props = { trip: OpenTrip; available: AvailableOrder[]; now: Date };
+
+export function TripBuilder({ trip, available, now }: Props) {
   const free = TRIP_CAPACITY - trip.totalUnits;
   const empty = trip.orders.length === 0;
 
@@ -22,10 +25,12 @@ export function TripBuilder({ trip, available }: { trip: TripDetail; available: 
       <Card>
         <CardContent className="flex flex-col gap-4">
           <CapacityBar units={trip.totalUnits} />
+          <ProfitSummary trip={trip} />
           <p className="text-sm text-muted-foreground">
             Fuel cost for this trip: {formatMoney(trip.fuelCostCents)}. It stays the same even if
             the planet&apos;s fuel cost changes.
           </p>
+          {!empty && <LossWarning profitCents={trip.expectedProfitCents} />}
           <div className="flex flex-wrap items-start gap-2">
             <ActionButton action={markLoadedAction} fields={{ tripId: trip.id }} disabled={empty}>
               Mark as loaded
@@ -37,7 +42,9 @@ export function TripBuilder({ trip, available }: { trip: TripDetail; available: 
           <p className="text-xs text-muted-foreground">
             {empty
               ? "Add at least one order before loading."
-              : "After loading, orders can no longer be added or removed."}
+              : trip.expectedProfitCents < 0
+                ? "You can still load this trip. After loading, orders can no longer be added or removed."
+                : "After loading, orders can no longer be added or removed."}
           </p>
         </CardContent>
       </Card>
@@ -80,6 +87,7 @@ export function TripBuilder({ trip, available }: { trip: TripDetail; available: 
           ) : (
             <OrderLines
               orders={available}
+              now={now}
               action={(order) => {
                 const fits = "fits" in order && order.fits;
                 return (

@@ -1,7 +1,9 @@
 import { ActionButton } from "@/components/action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { fullShipCoversFuel } from "@/features/settings/break-even";
 import { formatMoney } from "@/lib/money";
 import { createTripAction } from "../actions";
+import { CANNOT_COVER_FUEL } from "../profit";
 import type { TripPlanet } from "../service";
 
 export function PlanetChooser({ planets }: { planets: TripPlanet[] }) {
@@ -18,11 +20,14 @@ export function PlanetChooser({ planets }: { planets: TripPlanet[] }) {
               <dd className="text-right tabular-nums">{planet.daysFromEarth}</dd>
               <dt className="text-muted-foreground">Fuel cost</dt>
               <dd className="text-right tabular-nums">{formatMoney(planet.fuelCostCents)}</dd>
+              <dt className="text-muted-foreground">Delivery charge per unit</dt>
+              <dd className="text-right tabular-nums">{formatMoney(planet.deliveryChargeCents)}</dd>
               <dt className="text-muted-foreground">Waiting orders</dt>
               <dd className="text-right tabular-nums">
                 {planet.waitingOrders} ({planet.waitingUnits} units)
               </dd>
             </dl>
+            <FuelHint planet={planet} />
             <ActionButton action={createTripAction} fields={{ planetId: planet.id }}>
               Start trip
             </ActionButton>
@@ -30,5 +35,20 @@ export function PlanetChooser({ planets }: { planets: TripPlanet[] }) {
         </Card>
       ))}
     </div>
+  );
+}
+
+// How many units pay for the fuel, and whether the waiting orders are enough.
+function FuelHint({ planet }: { planet: TripPlanet }) {
+  const needed = planet.unitsToCoverFuel;
+  if (needed === null || !fullShipCoversFuel(needed)) {
+    return <p className="text-destructive">{CANNOT_COVER_FUEL}</p>;
+  }
+  const short = planet.waitingUnits < needed;
+  return (
+    <p className={short ? "text-destructive" : "text-muted-foreground"}>
+      Needs {needed} {needed === 1 ? "unit" : "units"} to cover fuel
+      {short && `. Only ${planet.waitingUnits} waiting, so a trip now would lose money`}
+    </p>
   );
 }

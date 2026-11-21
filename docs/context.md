@@ -128,6 +128,11 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D43 | Cancelled trip money | A cancelled trip is listed with earnings, fuel and profit of zero: it never flew. Its frozen fuel cost stays on the row |
 | D44 | Captain money DTO | Trip earnings and profit are in their own DTO (`TripRow`, from `listMyTrips` and `getMyTripRow`). `TripDetail` stays as in Phase 1, without money totals |
 | D45 | Phase 2 limits | Admiral order and trip lists filter by status and planet. Pagination and search stay in Phase 4, `getOverdueCount` in slice 3.2, the settings history page in Phase 5 (D19). History rows are written now |
+| D46 | Overdue threshold | C6 used as proposed: an order is overdue when it has waited strictly more than 3 days (exactly 3 days is not overdue). PLACED waits from `created_at`, ACCEPTED from `accepted_at`, every other status does not wait. An order that comes back from a trip keeps its first `accepted_at`. All in UTC instants, no calendar days |
+| D47 | One overdue rule | `orders/waiting.ts` holds the rule for the UI. The orders service holds the same rule as one SQL condition, used by both `getOverdueCount` and `listAllOrders({ overdue })`. The Admiral card links to `/admiral/orders?waiting=overdue&sort=waiting` |
+| D48 | Expected profit DTO | `getMyOpenTrip` returns `OpenTrip`: `TripDetail` plus earnings, expected profit and units to break even. `TripDetail` itself stays without money (D44). Earnings use each order's frozen charge. The units still needed use the planet's delivery charge of today and the space left on the ship |
+| D49 | Who sees waiting time | Managers (queue and planet orders), captains (available orders) and the Admiral (orders list, pipeline, "Waiting too long" card). Customer DTOs carry no waiting field. The text is worked out on the server at request time and is not live until auto-refresh in Phase 4 |
+| D50 | Loss made visible | A trip with negative profit is red and labelled in the trip tables ("Loss" or "Expected loss"), has a banner on its detail page for the captain and the Admiral, and a warning above "Mark as loaded". Loading it stays allowed |
 
 ## Changes vs project.md
 
@@ -152,14 +157,28 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | 0 Foundation | Slices 0.1 to 0.5 done locally. 0.6 (live deploy) waits for the Neon and Vercel projects |
 | 1 Order flow | Slices 1.1 to 1.6 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 2 Money and reports | Slices 2.1 to 2.7 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
-| 3 to 6 | Not started |
+| 3 Client pains | Slices 3.1 and 3.2 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
+| 4 to 6 | Not started |
 
 ## Open questions
 
-- Confirmations C6, C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled, C5 is used as proposed in D41).
+- Confirmations C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled, C5 and C6 are used as proposed in D41 and D46).
 - Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
 
 ## Changelog
+
+### 2026-11-22 · Phase 3, client pains
+
+- 3.1 Expected trip profit: `trips/profit` (earnings, expected profit, units to break even). `getMyOpenTrip` returns the money of the open trip. The trip builder shows "Earnings − Fuel = Expected profit", "N more units to cover fuel", each available order as "+$N", and "This trip will lose $X" above "Mark as loaded". The planet list shows the units that cover the fuel and warns when the waiting units are not enough.
+- 3.2 Waiting time: `orders/waiting` (waiting start, text, overdue after 3 days). "Waiting 2d 5h" in the manager queue, the manager's planet orders, the captain's available orders and the Admiral's orders, with overdue rows in red. The Admiral dashboard has a "Waiting too long" card that links to exactly those orders, and the pipeline shows the oldest waiting order.
+- Loss trips are marked in the captain and Admiral trip tables and on the trip detail pages (D50).
+- `/admiral/orders` has two new URL parameters: `waiting=overdue` and `sort=waiting`.
+- New decisions D46 to D50. No schema change, no new action.
+- The seed has 5 overdue orders: three old small orders to Uranus and Neptune, the order that came back from the cancelled Jupiter trip, and the oldest Uranus queue order.
+- Changed tests: two pipeline tests now compare status and count only, the available-order test expects `waitingSince`, and the captain "no hidden keys" test allows `expectedProfitCents` (the captain's own trip profit).
+- 885 automated tests (807 before). New: `profit` and `waiting` unit tests (boundaries at exactly 3 days, zero charge, unreachable break-even), expected profit after every add and remove, mixed frozen charges, the same numbers before and after the trip completes, waiting start per status and after a removal from a trip, the overdue count equal to the filtered list, role checks, and the seed.
+- Checked over HTTP against a production build with the seeded data: the dashboard card (5) and its link, the overdue list in waiting order, the Uranus manager's queue warning, the captain's builder summary with "+$N" and waiting time, the loss trip in the Admiral's list and on its detail page, and no waiting field in the customer pages.
+- Not done: the phase gate on the live URL (waits for slice 0.6). No click-through in a real browser for this phase: the loss warning above "Mark as loaded" is covered by tests and the shared component, not by a browser run.
 
 ### 2026-11-22 · Phase 2, seed shows every status
 

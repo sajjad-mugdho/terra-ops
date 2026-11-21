@@ -26,6 +26,7 @@ import {
 } from "@/db/schema";
 import { requireRole } from "@/features/auth/session";
 import type { OrderStatus } from "@/features/orders/status";
+import { unitsToCoverFuel } from "@/features/settings/break-even";
 import { AppError } from "@/lib/errors";
 import { CHECK_VIOLATION, isPgError, UNIQUE_VIOLATION } from "@/lib/pg-error";
 import {
@@ -34,6 +35,7 @@ import {
   TRIP_CAPACITY,
   type TripStatus,
 } from "./status";
+import { expectedProfitCents, tripEarningsCents, unitsToBreakEven } from "./profit";
 import { groupStops, type Stop } from "./stops";
 
 // What a captain may know about an order: no price, no making cost, no customer.
@@ -50,7 +52,8 @@ type OrderForCaptain = {
 
 export type CaptainOrder = OrderForCaptain & { status: OrderStatus };
 
-export type AvailableOrder = OrderForCaptain & { fits: boolean };
+// waitingSince: when the planet accepted it. A captain may know how long it has waited.
+export type AvailableOrder = OrderForCaptain & { waitingSince: Date; fits: boolean };
 
 export type TripDetail = {
   id: string;
@@ -68,6 +71,13 @@ export type TripDetail = {
   stops: Stop<CaptainOrder>[];
 };
 
+// The captain's open trip with its expected money. unitsToBreakEven: 0 covered, null cannot be covered.
+export type OpenTrip = TripDetail & {
+  earningsCents: number;
+  expectedProfitCents: number;
+  unitsToBreakEven: number | null;
+};
+
 export type TripPlanet = {
   id: string;
   name: string;
@@ -76,6 +86,8 @@ export type TripPlanet = {
   deliveryChargeCents: number;
   waitingOrders: number;
   waitingUnits: number;
+  // Units a trip must carry to pay for its fuel. null: never.
+  unitsToCoverFuel: number | null;
 };
 
 // One line of a trip list. Earnings come from the frozen delivery charges of its orders.
@@ -179,7 +191,9 @@ const withoutCaptain = (row: AdmiralTripRow): TripRow => ({
   completedAt: row.completedAt,
 });
 
-async function loadCaptainOrders(where: SQL | undefined): Promise<CaptainOrder[]> {
+type LoadedOrder = { order: CaptainOrder; acceptedAt: Date | null };
+
+async function loadOrders(where: SQL | undefined): Promise<LoadedOrder[]> {
   const rows = await db
     .select({
       id: orders.id,
@@ -190,6 +204,7 @@ async function loadCaptainOrders(where: SQL | undefined): Promise<CaptainOrder[]
       status: orders.status,
       totalUnits: orders.totalUnits,
       deliveryChargesCents: earned.deliveryChargesCents,
+      acceptedAt: orders.acceptedAt,
     })
     .from(orders)
     .innerJoin(divisions, eq(divisions.id, orders.divisionId))
@@ -214,12 +229,19 @@ async function loadCaptainOrders(where: SQL | undefined): Promise<CaptainOrder[]
     )
     .orderBy(asc(orderItems.productName));
 
-  return rows.map((row) => ({
-    ...row,
-    items: lines
-      .filter((line) => line.orderId === row.id)
-      .map(({ product, units }) => ({ product, units })),
+  return rows.map(({ acceptedAt, ...row }) => ({
+    acceptedAt,
+    order: {
+      ...row,
+      items: lines
+        .filter((line) => line.orderId === row.id)
+        .map(({ product, units }) => ({ product, units })),
+    },
   }));
+}
+
+async function loadCaptainOrders(where: SQL | undefined): Promise<CaptainOrder[]> {
+  return (await loadOrders(where)).map((loaded) => loaded.order);
 }
 
 async function loadTrip(where: SQL | undefined): Promise<TripDetail | null> {
@@ -261,7 +283,7 @@ export async function listPlanetsForTrip(): Promise<TripPlanet[]> {
     eq(orders.status, "ACCEPTED"),
     isNull(orders.tripId),
   );
-  return db
+  const rows = await db
     .select({
       id: planets.id,
       name: planets.name,
@@ -275,13 +297,36 @@ export async function listPlanetsForTrip(): Promise<TripPlanet[]> {
     .leftJoin(orders, waiting)
     .groupBy(planets.id)
     .orderBy(asc(planets.daysFromEarth));
+  return rows.map((planet) => ({
+    ...planet,
+    unitsToCoverFuel: unitsToCoverFuel(planet.fuelCostCents, planet.deliveryChargeCents),
+  }));
 }
 
-export async function getMyOpenTrip(): Promise<TripDetail | null> {
+export async function getMyOpenTrip(): Promise<OpenTrip | null> {
   const captain = await requireRole("captain");
-  return loadTrip(
+  const trip = await loadTrip(
     and(eq(trips.captainId, captain.id), notInArray(trips.status, ["COMPLETED", "CANCELLED"])),
   );
+  if (!trip) return null;
+
+  // Orders added from now on pay today's charge. The ones on the trip keep their frozen charge.
+  const [planet] = await db
+    .select({ deliveryChargeCents: planets.deliveryChargeCents })
+    .from(planets)
+    .where(eq(planets.id, trip.planet.id));
+  const earningsCents = tripEarningsCents(trip.orders);
+  return {
+    ...trip,
+    earningsCents,
+    expectedProfitCents: expectedProfitCents(trip.orders, trip.fuelCostCents),
+    unitsToBreakEven: unitsToBreakEven({
+      earningsCents,
+      fuelCostCents: trip.fuelCostCents,
+      unitChargeCents: planet.deliveryChargeCents,
+      freeUnits: TRIP_CAPACITY - trip.totalUnits,
+    }),
+  };
 }
 
 export async function getMyTrip(id: string): Promise<TripDetail> {
@@ -366,10 +411,11 @@ export async function listAvailableOrders(tripId: string): Promise<AvailableOrde
   if (!trip) throw new AppError("NOT_FOUND");
 
   const free = TRIP_CAPACITY - trip.totalUnits;
-  const available = await loadCaptainOrders(
+  const available = await loadOrders(
     and(eq(orders.planetId, trip.planetId), eq(orders.status, "ACCEPTED"), isNull(orders.tripId)),
   );
-  return available.map((order) => ({
+  // An ACCEPTED order always has accepted_at (a database check), so nothing is dropped here.
+  return available.flatMap(({ order, acceptedAt }) => acceptedAt === null ? [] : [{
     id: order.id,
     number: order.number,
     divisionId: order.divisionId,
@@ -378,8 +424,9 @@ export async function listAvailableOrders(tripId: string): Promise<AvailableOrde
     items: order.items,
     totalUnits: order.totalUnits,
     deliveryChargesCents: order.deliveryChargesCents,
+    waitingSince: acceptedAt,
     fits: order.totalUnits <= free,
-  }));
+  }]);
 }
 
 // The database re-checks every trip at commit. A refusal there means a parallel change won.

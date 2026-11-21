@@ -97,7 +97,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `listQueue` | orders | Manager | PLACED orders of own planet |
 | `listPlanetOrders` | orders | Manager | All orders of own planet, paged |
 | `getPlanetOrder` | orders | Manager | One planet order, no cost |
-| `listAllOrders` | orders | Admiral | Every order, paged |
+| `listAllOrders` | orders | Admiral | Every order, paged. Overdue filter, sort by waiting |
 | `getAnyOrder` | orders | Admiral | One order with cost and profit |
 | `listPlanetsForTrip` | trips | Captain | Planets with fuel cost and waiting orders |
 | `getMyOpenTrip` | trips | Captain | Open trip with orders, stops, expected profit |
@@ -110,7 +110,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `getCompanyTotals` | reports | Admiral | Units, revenue, cost, profit |
 | `getPlanetProfitSummary` | reports | Admiral | One row per planet, sorted by profit |
 | `getPlanetProductTable` | reports | Admiral | Planet × product rows |
-| `getPipeline` | reports | Admiral | Order count per status |
+| `getPipeline` | reports | Admiral | Order count per status, oldest waiting order for PLACED and ACCEPTED |
 | `getOverdueCount` | reports | Admiral | Orders waiting too long |
 | `getPlanetPurchases` | reports | Manager | Per product purchases |
 | `getPlanetInProgress` | reports | Manager | Per product purchases on the way |
@@ -159,3 +159,4 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `from`, `to` | Reports | `YYYY-MM-DD`, UTC. Default last 30 days |
 | `entity` | `/admiral/history` | `product`, `planet`, or empty |
 | `sort` | `/admiral/orders` | `newest` (default), `waiting` |
+| `waiting` | `/admiral/orders` | `overdue`: only orders waiting over 3 days. Anything else → ignored |

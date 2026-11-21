@@ -227,6 +227,9 @@ export const EXPECTED = {
     AT_SECTOR: 1,
     DELIVERED: 12,
   },
+  // Waiting more than 3 days: three unpicked far-planet orders, the order that came back from
+  // the cancelled Jupiter trip, and the oldest Uranus queue order.
+  overdueOrders: 5,
   tripsByStatus: { PLANNING: 1, LOADED: 1, LIFTED_OFF: 1, LANDED: 1, COMPLETED: 6, CANCELLED: 1 },
   totals: { unitsDelivered: 99, revenueCents: 133900, makingCostCents: 82600, profitCents: 51300 },
   // Highest profit first, then by name.

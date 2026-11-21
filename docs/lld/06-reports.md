@@ -16,8 +16,8 @@ Answers the money questions for each role. Read-only. It owns no tables and has 
 |---|---|
 | `features/reports/range.ts` | Pure: parse and validate a date range |
 | `features/reports/ranking.ts` | Pure: profit descending, ties by name. Used by the summary and the table |
-| `features/reports/service.ts` | 8 functions. 7 built in Phase 2, `getOverdueCount` comes in slice 3.2 |
-| `features/reports/components/` | `TotalsCards`, `PlanetProfitSummary`, `PlanetProductTable`, `PipelineList`, `PurchasesTable`, `EarningsSummary`. `OverdueCard` comes in slice 3.2 |
+| `features/reports/service.ts` | 8 functions. 7 built in Phase 2, `getOverdueCount` in slice 3.2 |
+| `features/reports/components/` | `TotalsCards`, `PlanetProfitSummary`, `PlanetProductTable`, `PipelineList`, `PurchasesTable`, `EarningsSummary`, `OverdueCard` |
 | `app/(app)/admiral`, `manager/report`, `captain/trips` | Pages |
 
 ## 3. Data it reads
@@ -58,7 +58,7 @@ None. Filters are URL parameters (`from`, `to`).
 | `getCompanyTotals(range)` | Admiral | from, to | `{ unitsDelivered, revenueCents, makingCostCents, profitCents }` |
 | `getPlanetProfitSummary(range)` | Admiral | from, to | `[{ planet, units, revenueCents, makingCostCents, profitCents }]`. Every planet, sorted by profit, ties by name (D32) |
 | `getPlanetProductTable(range)` | Admiral | from, to | `[{ planet, rows: [{ product, units, revenueCents, makingCostCents, profitCents }], subtotal }]`. Every planet, zeros included, same planet order as the summary |
-| `getPipeline()` | Admiral | — | `[{ status, count }]` for all 9 statuses |
+| `getPipeline()` | Admiral | — | `[{ status, count, oldestWaitingSince }]` for all 9 statuses. `oldestWaitingSince` is set only for PLACED and ACCEPTED |
 | `getOverdueCount()` | Admiral | — | `{ count }` of orders waiting over 3 days |
 | `getPlanetPurchases(range)` | Manager | from, to | `{ rows: [{ product, units, productAmountCents, deliveryChargesCents, totalPaidCents }], total }` |
 | `getPlanetInProgress()` | Manager | — | Same shape as `getPlanetPurchases`, for orders ACCEPTED to AT_SECTOR (D31) |
@@ -106,6 +106,7 @@ flowchart TD
 - The dashboard answers "which planets are profitable" first: the summary is sorted by profit.
 - The manager's two tables never overlap. An order is in "In progress" or in "Delivered", not both.
 - The pipeline and overdue count ignore the date range. They show the present.
+- The overdue count and the filtered Admiral list use one SQL condition (`overdueOrders` in the orders service), so the card and the list behind its link cannot disagree (D47).
 - A negative profit is shown in red with a minus sign.
 - A planet's subtotal comes from the same query as its product rows (`GROUPING SETS`), so it cannot drift from them.
 - The captain's per-trip numbers come from `listMyTrips` in `lld/05-trips.md`. A cancelled trip counts as zero (D43).

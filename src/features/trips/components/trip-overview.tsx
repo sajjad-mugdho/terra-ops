@@ -3,6 +3,7 @@ import { Money } from "@/components/money";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUtc } from "@/lib/dates";
+import { formatMoney } from "@/lib/money";
 import type { TripDetail } from "../service";
 import { isOpenTrip, tripLabel, tripTone } from "../status";
 import { OrderLines } from "./order-lines";
@@ -47,6 +48,13 @@ export function TripOverview({ trip, money, captainName }: Props) {
           Earnings are the delivery charges of the trip&apos;s orders. Profit is earnings minus fuel.
         </span>
       </div>
+
+      {money.profitCents < 0 && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+          {open ? "This trip will lose" : "This trip lost"} {formatMoney(-money.profitCents)}: earnings{" "}
+          {formatMoney(money.earningsCents)}, fuel {formatMoney(trip.fuelCostCents)}.
+        </p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[20rem_1fr]">
         <Card className="h-fit">

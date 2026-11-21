@@ -8,6 +8,7 @@ import {
   acceptAs,
   ADMIRAL,
   ALL_ACTORS,
+  backdate,
   CAPTAIN,
   clearOrders,
   CUSTOMER,
@@ -20,6 +21,7 @@ import {
   placeWater,
   planetId,
   planTrip,
+  acceptedWater,
   productId,
   timeline,
   VENUS_D1,
@@ -714,5 +716,154 @@ describe("Admiral orders", () => {
     await expect(acceptOrder(mars.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(rejectOrder(mars.id, "Not allowed")).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await db.$count(orders, eq(orders.status, "PLACED"))).toBe(2);
+  });
+});
+
+describe("waiting time", () => {
+  const DAY = 1440;
+  const row = async (id: string) => (await db.select().from(orders).where(eq(orders.id, id)))[0];
+
+  it("counts a queued order from when it was placed", async () => {
+    const placed = await placeWater(2);
+    await backdate(placed.id, 2 * DAY + 300);
+    switchTo(MARS_MANAGER);
+
+    const [queued] = await listQueue();
+    expect(queued.waitingSince).toEqual((await row(placed.id)).createdAt);
+    expect(queued.waitingSince).toEqual(queued.createdAt);
+  });
+
+  it("sorts the queue by waiting time, oldest first, whatever the order number", async () => {
+    const first = await placeWater(1);
+    const second = await placeWater(2);
+    await backdate(second.id, 5 * DAY);
+    switchTo(MARS_MANAGER);
+    expect((await listQueue()).map((order) => order.id)).toEqual([second.id, first.id]);
+  });
+
+  it("gives a manager the waiting start per status: placed, accepted, or none", async () => {
+    const placed = await placeWater(1);
+    const accepted = await acceptedWater(2);
+    const refused = await placeWater(3);
+    switchTo(MARS_MANAGER);
+    await rejectOrder(refused.id, "Out of stock");
+    const riding = await acceptedWater(4);
+    await planTrip(CAPTAIN, "Mars", [riding.id]);
+    await backdate(accepted.id, 9 * DAY, 4 * DAY);
+
+    switchTo(MARS_MANAGER);
+    const list = await listPlanetOrders();
+    const since = (id: string) => list.find((order) => order.id === id)?.waitingSince;
+    expect(since(placed.id)).toEqual((await row(placed.id)).createdAt);
+    expect(since(accepted.id)).toEqual((await row(accepted.id)).acceptedAt);
+    expect(since(accepted.id)).not.toEqual((await row(accepted.id)).createdAt);
+    expect(since(refused.id)).toBeNull();
+    expect(since(riding.id)).toBeNull();
+  });
+
+  it("keeps the first accepted time when a captain puts an order back", async () => {
+    const order = await acceptedWater(3);
+    await backdate(order.id, 6 * DAY, 5 * DAY);
+    const accepted = (await row(order.id)).acceptedAt;
+    const tripId = await planTrip(CAPTAIN, "Mars", [order.id]);
+    const { removeOrderFromTrip } = await import("@/features/trips/service");
+    await removeOrderFromTrip(tripId, order.id);
+
+    switchTo(MARS_MANAGER);
+    expect((await listPlanetOrders())[0]).toMatchObject({ status: "ACCEPTED", waitingSince: accepted });
+  });
+
+  it("never shows a manager the waiting orders of another planet", async () => {
+    const venus = await placeWater(4, await VENUS_D1(), "Venus");
+    await backdate(venus.id, 9 * DAY);
+    switchTo(MARS_MANAGER);
+    expect(await listQueue()).toEqual([]);
+    expect(await listPlanetOrders()).toEqual([]);
+  });
+
+  it("gives a customer no waiting time at all", async () => {
+    const placed = await placeWater(3);
+    await backdate(placed.id, 9 * DAY);
+    switchTo(CUSTOMER);
+    const keys = [...deepKeys(await getMyOrder(placed.id)), ...deepKeys(await listMyOrders())];
+    expect(keys.filter((key) => /waiting|overdue/i.test(key))).toEqual([]);
+  });
+
+  it("adds no cost or profit to the manager lists", async () => {
+    const placed = await placeWater(3);
+    await backdate(placed.id, 9 * DAY);
+    switchTo(MARS_MANAGER);
+    const keys = [...deepKeys(await listQueue()), ...deepKeys(await listPlanetOrders())];
+    expect(keys).toContain("waitingSince");
+    expect(keys.filter((key) => HIDDEN_FROM_STAFF.test(key))).toEqual([]);
+  });
+
+  describe("Admiral list", () => {
+    // Overdue: placedLong (4 days) and unpicked (accepted 3 days and 1 minute ago).
+    async function waitingSet() {
+      const placedLong = await placeWater(1);
+      const placedShort = await placeWater(2);
+      const unpicked = await acceptedWater(3);
+      const justAccepted = await acceptedWater(4);
+      const refused = await placeWater(5);
+      switchTo(MARS_MANAGER);
+      await rejectOrder(refused.id, "Out of stock");
+      const riding = await acceptedWater(6);
+      await planTrip(CAPTAIN, "Mars", [riding.id]);
+      const venus = await placeWater(7, await VENUS_D1(), "Venus");
+
+      await backdate(placedLong.id, 4 * DAY);
+      await backdate(placedShort.id, 3 * DAY - 1);
+      await backdate(unpicked.id, 10 * DAY, 3 * DAY + 1);
+      // Placed long ago, accepted an hour ago: the wait for a captain has just started.
+      await backdate(justAccepted.id, 10 * DAY, 60);
+      await backdate(refused.id, 10 * DAY);
+      await backdate(riding.id, 10 * DAY, 9 * DAY);
+      await backdate(venus.id, 2 * DAY);
+      return { placedLong, placedShort, unpicked, justAccepted, refused, riding, venus };
+    }
+
+    it("filters to exactly the orders that wait longer than 3 days", async () => {
+      const set = await waitingSet();
+      switchTo(ADMIRAL);
+      const overdue = await listAllOrders({ overdue: true });
+      expect(overdue.map((order) => order.id).sort()).toEqual([set.placedLong.id, set.unpicked.id].sort());
+      expect(await listAllOrders({ overdue: false })).toHaveLength(7);
+    });
+
+    it("combines the overdue filter with status and planet", async () => {
+      const set = await waitingSet();
+      switchTo(ADMIRAL);
+      expect((await listAllOrders({ overdue: true, status: "ACCEPTED" })).map((order) => order.id)).toEqual([set.unpicked.id]);
+      expect(await listAllOrders({ overdue: true, planetId: await planetId("Venus") })).toEqual([]);
+      expect(await listAllOrders({ overdue: true, status: "DELIVERED" })).toEqual([]);
+    });
+
+    it("sorts by longest waiting first and puts orders that do not wait last", async () => {
+      const set = await waitingSet();
+      switchTo(ADMIRAL);
+      const sorted = await listAllOrders({ sort: "waiting" });
+      expect(sorted.slice(0, 5).map((order) => order.id)).toEqual([
+        set.placedLong.id,
+        set.unpicked.id,
+        set.placedShort.id,
+        set.venus.id,
+        set.justAccepted.id,
+      ]);
+      expect(sorted.slice(5).map((order) => order.waitingSince)).toEqual([null, null]);
+    });
+
+    it("keeps newest first as the default order", async () => {
+      const set = await waitingSet();
+      switchTo(ADMIRAL);
+      const byNewest = await listAllOrders();
+      expect(byNewest[0].id).toBe(set.venus.id);
+      expect(await listAllOrders({ sort: "newest" })).toEqual(byNewest);
+    });
+
+    it.each([CUSTOMER, MARS_MANAGER, CAPTAIN])("keeps the overdue list FORBIDDEN for %s", async (email) => {
+      switchTo(email);
+      await expect(listAllOrders({ overdue: true, sort: "waiting" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
   });
 });

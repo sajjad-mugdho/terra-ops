@@ -1,15 +1,17 @@
 import { eq } from "drizzle-orm";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import { orders } from "@/db/schema";
-import { rejectOrder } from "@/features/orders/service";
+import { listAllOrders, rejectOrder } from "@/features/orders/service";
 import { updateProduct } from "@/features/settings/service";
 import { cancelTrip, listMyTrips, markLiftedOff, markLoaded } from "@/features/trips/service";
 import { seedReference } from "@/seed/reference";
 import {
   acceptAs,
   ADMIRAL,
+  acceptedWater,
   ALL_ACTORS,
+  backdate,
   CAPTAIN,
   clearOrders,
   CUSTOMER,
@@ -22,6 +24,7 @@ import {
   OTHER_CAPTAIN,
   OTHER_CUSTOMER,
   placeItems,
+  placeWater,
   planTrip,
   productId,
   resetSettings,
@@ -33,6 +36,7 @@ import { parseRange } from "./range";
 import {
   getCompanyTotals,
   getMyEarnings,
+  getOverdueCount,
   getPipeline,
   getPlanetInProgress,
   getPlanetProductTable,
@@ -157,7 +161,7 @@ describe("Admiral dashboard on a known set", () => {
 
   it("counts all 9 statuses in the pipeline, whatever the range", async () => {
     switchTo(ADMIRAL);
-    expect(await getPipeline()).toEqual([
+    expect((await getPipeline()).map(({ status, count }) => ({ status, count }))).toEqual([
       { status: "PLACED", count: 1 },
       { status: "ACCEPTED", count: 1 },
       { status: "REJECTED", count: 1 },
@@ -444,5 +448,84 @@ describe("getMyEarnings", () => {
   it.each([CUSTOMER, MARS_MANAGER, ADMIRAL])("is FORBIDDEN for %s", async (email) => {
     switchTo(email);
     await expect(getMyEarnings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("orders waiting too long", () => {
+  const DAY_MINUTES = 1440;
+
+  beforeEach(clearOrders);
+
+  it("is zero when nothing waits longer than 3 days", async () => {
+    await placeWater(1);
+    await acceptedWater(2);
+    switchTo(ADMIRAL);
+    expect(await getOverdueCount()).toEqual({ count: 0 });
+    expect(await listAllOrders({ overdue: true })).toEqual([]);
+  });
+
+  it("counts exactly the orders of the filtered list", async () => {
+    const placedLong = await placeWater(1);
+    const placedOnTheLine = await placeWater(2);
+    const unpicked = await acceptedWater(3);
+    const justAccepted = await acceptedWater(4);
+    const refused = await placeWater(5);
+    switchTo(MARS_MANAGER);
+    await rejectOrder(refused.id, "Out of stock");
+    const riding = await acceptedWater(6);
+    await planTrip(CAPTAIN, "Mars", [riding.id]);
+    const done = await acceptedWater(7);
+    await flyTrip(OTHER_CAPTAIN, await planTrip(OTHER_CAPTAIN, "Mars", [done.id]));
+    const venus = await placeItems({ Water: 2 }, await VENUS_D1());
+
+    await backdate(placedLong.id, 4 * DAY_MINUTES);
+    await backdate(placedOnTheLine.id, 3 * DAY_MINUTES - 1);
+    await backdate(unpicked.id, 10 * DAY_MINUTES, 3 * DAY_MINUTES + 1);
+    await backdate(justAccepted.id, 10 * DAY_MINUTES, 60);
+    await backdate(refused.id, 10 * DAY_MINUTES);
+    await backdate(riding.id, 10 * DAY_MINUTES, 9 * DAY_MINUTES);
+    await backdate(venus.id, 8 * DAY_MINUTES);
+
+    switchTo(ADMIRAL);
+    const list = await listAllOrders({ overdue: true });
+    expect(list.map((order) => order.id).sort()).toEqual([placedLong.id, unpicked.id, venus.id].sort());
+    expect(await getOverdueCount()).toEqual({ count: list.length });
+  });
+
+  it("gives the oldest waiting order of the two waiting statuses in the pipeline", async () => {
+    const placedOld = await placeWater(1);
+    await placeWater(2);
+    const acceptedOld = await acceptedWater(3);
+    await acceptedWater(4);
+    const riding = await acceptedWater(5);
+    await planTrip(CAPTAIN, "Mars", [riding.id]);
+    await backdate(placedOld.id, 5 * DAY_MINUTES);
+    await backdate(acceptedOld.id, 9 * DAY_MINUTES, 2 * DAY_MINUTES);
+    await backdate(riding.id, 20 * DAY_MINUTES, 19 * DAY_MINUTES);
+
+    const stored = async (id: string) => (await db.select().from(orders).where(eq(orders.id, id)))[0];
+    switchTo(ADMIRAL);
+    const pipeline = await getPipeline();
+    const oldest = (status: string) => pipeline.find((row) => row.status === status)?.oldestWaitingSince;
+    expect(oldest("PLACED")).toEqual((await stored(placedOld.id)).createdAt);
+    expect(oldest("ACCEPTED")).toEqual((await stored(acceptedOld.id)).acceptedAt);
+    expect(oldest("ASSIGNED")).toBeNull();
+    expect(oldest("DELIVERED")).toBeNull();
+    expect(pipeline.map((row) => row.count)).toEqual([2, 2, 0, 1, 0, 0, 0, 0, 0]);
+  });
+
+  it("has no oldest waiting order when nothing waits", async () => {
+    switchTo(ADMIRAL);
+    expect((await getPipeline()).map((row) => row.oldestWaitingSince)).toEqual(Array(9).fill(null));
+  });
+
+  it.each([CUSTOMER, MARS_MANAGER, CAPTAIN])("keeps the count FORBIDDEN for %s", async (email) => {
+    switchTo(email);
+    await expect(getOverdueCount()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("is UNAUTHORIZED without a session", async () => {
+    actAsNobody();
+    await expect(getOverdueCount()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

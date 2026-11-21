@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { PageHeader } from "@/components/page-header";
 import { requirePageRole } from "@/features/auth/guards";
+import { OverdueCard } from "@/features/reports/components/overdue-card";
 import { PipelineList } from "@/features/reports/components/pipeline-list";
 import { PlanetProductTable } from "@/features/reports/components/planet-product-table";
 import { PlanetProfitSummary } from "@/features/reports/components/planet-profit-summary";
@@ -9,6 +10,7 @@ import { TotalsCards } from "@/features/reports/components/totals-cards";
 import { parseRange } from "@/features/reports/range";
 import {
   getCompanyTotals,
+  getOverdueCount,
   getPipeline,
   getPlanetProductTable,
   getPlanetProfitSummary,
@@ -20,11 +22,12 @@ export default async function AdmiralHomePage({ searchParams }: PageProps<"/admi
   await requirePageRole("admiral");
   const { from, to } = await searchParams;
   const range = parseRange(from, to);
-  const [totals, summary, table, pipeline] = await Promise.all([
+  const [totals, summary, table, pipeline, overdue] = await Promise.all([
     getCompanyTotals(range),
     getPlanetProfitSummary(range),
     getPlanetProductTable(range),
     getPipeline(),
+    getOverdueCount(),
   ]);
 
   return (
@@ -67,7 +70,8 @@ export default async function AdmiralHomePage({ searchParams }: PageProps<"/admi
               Orders right now, in every status. The date range does not apply here.
             </p>
           </div>
-          <PipelineList rows={pipeline} />
+          <OverdueCard count={overdue.count} />
+          <PipelineList rows={pipeline} now={new Date()} />
         </section>
       </div>
     </>

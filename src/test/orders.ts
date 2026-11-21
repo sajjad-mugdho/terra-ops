@@ -148,6 +148,22 @@ export async function resetSettings() {
   }
 }
 
+// Moves an order's clocks into the past, in minutes, so a test can stand on the 3 day line.
+export async function backdate(orderId: string, placedMinutes: number, acceptedMinutes = placedMinutes) {
+  await db.transaction(async (tx) => {
+    // created_at is frozen by a trigger. Only a test may step around it.
+    await tx.execute(sql`alter table orders disable trigger orders_frozen_columns`);
+    await tx.execute(sql`
+      update orders set
+        created_at = now() - make_interval(mins => ${placedMinutes}),
+        accepted_at = case when accepted_at is null then null
+          else now() - make_interval(mins => ${acceptedMinutes}) end
+      where id = ${orderId}
+    `);
+    await tx.execute(sql`alter table orders enable trigger orders_frozen_columns`);
+  });
+}
+
 export async function timeline(orderId: string) {
   return db
     .select({ status: orderEvents.status, note: orderEvents.note, tripId: orderEvents.tripId })

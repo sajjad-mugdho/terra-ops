@@ -7,6 +7,7 @@ type Select = {
   name: string;
   label: string;
   value: string;
+  emptyLabel?: string;
   options: { value: string; label: string }[];
 };
 
@@ -25,7 +26,7 @@ export function SelectFilters({ path, selects }: Props) {
             defaultValue={select.value}
             className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <option value="">All</option>
+            <option value="">{select.emptyLabel ?? "All"}</option>
             {select.options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
