@@ -123,6 +123,11 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D38 | Cart state | The checkout cart lives in the URL (`?division=&items=id:units,...&step=review`). A refresh on step 2 and the "Back" link keep it. The server drops unknown IDs from it |
 | D39 | Timeline of a returned order | An order that leaves a trip gets an ACCEPTED event that carries the trip. The timeline shows it as "Removed from trip". The note is "Removed from trip" or "Trip cancelled" |
 | D40 | Lists before Phase 4 | `listMyOrders` and `listPlanetOrders` return every row, with no `page`, `q` or `status` yet. Pagination, search, auto-refresh, waiting time and expected trip profit stay in Phases 3 and 4 |
+| D41 | Report date range | C5 used as proposed: the default is today and the 30 days before it, in UTC. `from` and `to` are in the URL, both days included. A missing or invalid range in the URL falls back to the default. A start date after the end date is stopped in the form, so the last result stays on screen |
+| D42 | Seed statuses | The seed shows 8 of the 9 order statuses. With 3 captains and one open trip each, the open trips are PLANNING, LIFTED_OFF and LANDED, so no order is LOADED. One click on "Mark as loaded" shows it |
+| D43 | Cancelled trip money | A cancelled trip is listed with earnings, fuel and profit of zero: it never flew. Its frozen fuel cost stays on the row |
+| D44 | Captain money DTO | Trip earnings and profit are in their own DTO (`TripRow`, from `listMyTrips` and `getMyTripRow`). `TripDetail` stays as in Phase 1, without money totals |
+| D45 | Phase 2 limits | Admiral order and trip lists filter by status and planet. Pagination and search stay in Phase 4, `getOverdueCount` in slice 3.2, the settings history page in Phase 5 (D19). History rows are written now |
 
 ## Changes vs project.md
 
@@ -146,14 +151,28 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | Setup | Done |
 | 0 Foundation | Slices 0.1 to 0.5 done locally. 0.6 (live deploy) waits for the Neon and Vercel projects |
 | 1 Order flow | Slices 1.1 to 1.6 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
-| 2 to 6 | Not started |
+| 2 Money and reports | Slices 2.1 to 2.7 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
+| 3 to 6 | Not started |
 
 ## Open questions
 
-- Confirmations C5, C6, C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled).
+- Confirmations C6, C8, C9, C10 in `plan.md` §15 (C1 to C4 and C7 are settled, C5 is used as proposed in D41).
 - Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
 
 ## Changelog
+
+### 2026-11-22 · Phase 2, money and reports
+
+- 2.1 and 2.2 Settings: `/admiral/products` and `/admiral/planets` with an edit dialog. `updateProduct` and `updatePlanetCharges` lock the row, write one `settings_changes` row per changed field and nothing when nothing changed. Dollar text becomes cents in `settings/schemas`. Warnings for a product sold at a loss and a planet whose fuel a full ship cannot cover.
+- 2.3 Admiral dashboard: `/admiral` with the date range in the URL, four totals, "Profit by planet" (D32), planet by product with subtotals, and the pipeline. One counting rule: DELIVERED by `delivered_at`. Every sum is done in SQL on the frozen columns.
+- 2.4 Manager: `/manager/report` with "Delivered" and "In progress" (D31). The planet comes from the session. The queries select no making cost.
+- 2.5 Captain: `/captain/trips` with totals over COMPLETED trips, the open trip as "Expected", trip history, and `/captain/trips/[id]`.
+- 2.6 Admiral lists: `/admiral/orders`, `/admiral/trips` and their detail pages, read-only, with status and planet filters. Order detail shows making cost, profit and who did each step.
+- 2.7 Seed: `seed/history` adds 30 orders, 10 trips and one Water price change, all in the past. The expected dashboard and captain numbers are constants in `seed/history-data.ts`, worked out by hand and checked by a test.
+- New decisions D41 to D45. No schema change: `settings_changes` already existed.
+- 804 automated tests (557 before). New: range parsing, break-even units, money input, both settings services with history and snapshots, exact report numbers on a known set, range boundaries, manager isolation and no cost key at any depth, the three reports agreeing with each other, captain worked examples (+$50 and -$15), Admiral read access and no mutations, and the seed.
+- Checked against a production build with the seeded data. Over HTTP: dashboard totals, empty and invalid ranges, manager report, captain totals and the loss trip in red, another captain's trip as not found, Admiral detail pages without action buttons. In a headless browser: both edit dialogs (field errors keep the typed text, "Saved", "Nothing changed", loss and fuel warnings), the date filter (start after end stays on the page, a valid range goes into the URL), the new price at checkout, and the dashboard unchanged after a price change.
+- Not done: the phase gate on the live URL (waits for slice 0.6).
 
 ### 2026-11-22 · Phase 1, order flow
 

@@ -13,7 +13,7 @@ A captain opens a trip to one planet, fills it with accepted orders (max 20 unit
 | `features/trips/stops.ts` | Pure: group orders into stops |
 | `features/trips/profit.ts` | Pure: expected profit, break-even units |
 | `features/trips/schemas.ts` | ID schemas |
-| `features/trips/service.ts` | 16 functions |
+| `features/trips/service.ts` | 17 functions |
 | `features/trips/actions.ts` | 9 actions |
 | `features/trips/components/` | `PlanetChooser`, `TripBuilder`, `CapacityBar`, `OrderLines`, `TripSteps`, `StopCard`. Later phases: `ProfitSummary`, `TripTable` |
 
@@ -84,10 +84,11 @@ Delivery actions also revalidate the customer's tracking page and the reports.
 
 | Function | Role | Returns |
 |---|---|---|
-| `listMyTrips({ page, status })` | Captain | Paged trips with units, earnings, fuel, profit |
+| `listMyTrips()` | Captain | Own trips with units, earnings, fuel, profit. Paging comes in Phase 4 |
 | `getMyTrip(id)` | Captain | Trip detail |
-| `listAllTrips({ page, q, status, planet })` | Admiral | Paged trips with captain name |
-| `getAnyTrip(id)` | Admiral | Trip detail with captain name |
+| `getMyTripRow(id)` | Captain | Earnings, fuel and profit of one own trip (D44) |
+| `listAllTrips({ status, planetId })` | Admiral | Every trip with captain name. Paging and search come in Phase 4 |
+| `getAnyTrip(id)` | Admiral | Trip detail with captain name, earnings and profit |
 
 **Trip detail fields**
 
@@ -149,4 +150,5 @@ flowchart TD
 - No time gate: a captain can mark Landed at any moment after lift-off.
 - Remove and cancel also start with the locking `SELECT`. Only add starts with `UPDATE trips`, because its `WHERE` is the capacity check.
 - The last `markStopDeliveredAction` redirects to `/captain/trip?completed=<tripId>`. The page reads that trip with `getMyTrip` and shows the "Trip completed" summary above the planet list.
-- Built in Phase 1: the 12 building and flying functions plus `getMyTrip`. `listMyTrips`, the Admiral functions, and the profit and waiting fields come in Phases 2 and 3.
+- Built in Phase 1: the 12 building and flying functions plus `getMyTrip`. Built in Phase 2: `listMyTrips`, `getMyTripRow`, `listAllTrips`, `getAnyTrip`. Expected profit while building and the waiting fields come in Phase 3.
+- Trip earnings are summed in SQL from the frozen delivery charges (`tripEarned`). A cancelled trip has profit zero (D43).

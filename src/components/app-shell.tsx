@@ -8,12 +8,22 @@ import type { CurrentUser } from "@/features/auth/session";
 
 // A link is added here in the slice that adds its page.
 const NAV: Record<Role, { href: Route; label: string }[]> = {
-  admiral: [{ href: "/admiral", label: "Dashboard" }],
+  admiral: [
+    { href: "/admiral", label: "Dashboard" },
+    { href: "/admiral/orders", label: "Orders" },
+    { href: "/admiral/trips", label: "Trips" },
+    { href: "/admiral/products", label: "Products" },
+    { href: "/admiral/planets", label: "Planets" },
+  ],
   manager: [
     { href: "/manager/queue", label: "Order queue" },
     { href: "/manager/orders", label: "All orders" },
+    { href: "/manager/report", label: "Purchases" },
   ],
-  captain: [{ href: "/captain/trip", label: "My trip" }],
+  captain: [
+    { href: "/captain/trip", label: "My trip" },
+    { href: "/captain/trips", label: "Trips and earnings" },
+  ],
   customer: [
     { href: "/customer/orders", label: "My orders" },
     { href: "/customer/orders/new", label: "New order" },

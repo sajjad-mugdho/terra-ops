@@ -3,10 +3,12 @@ import {
   canTripTransition,
   hasReached,
   isOpenTrip,
+  parseTripStatus,
   TRIP_STATUSES,
   tripCode,
   tripLabel,
   type TripStatus,
+  tripTone,
 } from "./status";
 
 const VALID: [TripStatus, TripStatus][] = [
@@ -68,5 +70,28 @@ describe("helpers", () => {
   it("labels and codes a trip", () => {
     expect(tripLabel("LIFTED_OFF")).toBe("Lifted off");
     expect(tripCode(101)).toBe("TRP-101");
+  });
+});
+
+describe("tripTone", () => {
+  it.each([
+    ["PLANNING", "neutral"],
+    ["LOADED", "info"],
+    ["LIFTED_OFF", "info"],
+    ["LANDED", "info"],
+    ["COMPLETED", "success"],
+    ["CANCELLED", "danger"],
+  ] as const)("%s is %s", (status, tone) => {
+    expect(tripTone(status)).toBe(tone);
+  });
+});
+
+describe("parseTripStatus", () => {
+  it.each(TRIP_STATUSES)("accepts %s", (status) => {
+    expect(parseTripStatus(status)).toBe(status);
+  });
+
+  it.each(["completed", "DELIVERED", "", undefined, ["COMPLETED"], 1])("ignores %j", (value) => {
+    expect(parseTripStatus(value)).toBeUndefined();
   });
 });

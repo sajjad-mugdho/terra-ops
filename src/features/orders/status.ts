@@ -14,6 +14,11 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export type PaymentStatus = "PAID" | "REFUNDED";
 
+// A status from the URL. Anything unknown is ignored.
+export function parseOrderStatus(value: unknown): OrderStatus | undefined {
+  return ORDER_STATUSES.find((status) => status === value);
+}
+
 // The 8 steps of the progress line. REJECTED is a dead end, not a step.
 export const ORDER_STEPS: readonly OrderStatus[] = ORDER_STATUSES.filter(
   (status) => status !== "REJECTED",

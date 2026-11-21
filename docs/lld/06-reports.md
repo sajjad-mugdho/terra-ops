@@ -15,8 +15,9 @@ Answers the money questions for each role. Read-only. It owns no tables and has 
 | File | Holds |
 |---|---|
 | `features/reports/range.ts` | Pure: parse and validate a date range |
-| `features/reports/service.ts` | 8 functions |
-| `features/reports/components/` | `TotalsCards`, `PlanetProfitSummary`, `PlanetProductTable`, `PipelineList`, `OverdueCard`, `PurchasesTable`, `EarningsSummary` |
+| `features/reports/ranking.ts` | Pure: profit descending, ties by name. Used by the summary and the table |
+| `features/reports/service.ts` | 8 functions. 7 built in Phase 2, `getOverdueCount` comes in slice 3.2 |
+| `features/reports/components/` | `TotalsCards`, `PlanetProfitSummary`, `PlanetProductTable`, `PipelineList`, `PurchasesTable`, `EarningsSummary`. `OverdueCard` comes in slice 3.2 |
 | `app/(app)/admiral`, `manager/report`, `captain/trips` | Pages |
 
 ## 3. Data it reads
@@ -69,7 +70,9 @@ All throw `FORBIDDEN` for a wrong role. Manager functions take the planet from t
 
 | Function | Purpose |
 |---|---|
-| `parseRange(from, to)` | Valid range, or the default (last 30 days). End date inclusive. UTC |
+| `parseRange(from, to)` | Valid range, or the default (today and the 30 days before, D41). End date inclusive. UTC |
+| `rangeError(from, to)` | The message the date form shows, or null |
+| `byProfitThenName(a, b)` | The one sort rule for planets |
 
 ## 6. Flow
 
@@ -104,3 +107,5 @@ flowchart TD
 - The manager's two tables never overlap. An order is in "In progress" or in "Delivered", not both.
 - The pipeline and overdue count ignore the date range. They show the present.
 - A negative profit is shown in red with a minus sign.
+- A planet's subtotal comes from the same query as its product rows (`GROUPING SETS`), so it cannot drift from them.
+- The captain's per-trip numbers come from `listMyTrips` in `lld/05-trips.md`. A cancelled trip counts as zero (D43).

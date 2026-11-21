@@ -1,8 +1,29 @@
 import "server-only";
-import { and, asc, eq, inArray, isNull, ne, notInArray, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { divisions, orderEvents, orderItems, orders, planets, sectors, trips } from "@/db/schema";
+import {
+  divisions,
+  orderEvents,
+  orderItems,
+  orders,
+  planets,
+  sectors,
+  trips,
+  user,
+} from "@/db/schema";
 import { requireRole } from "@/features/auth/session";
 import type { OrderStatus } from "@/features/orders/status";
 import { AppError } from "@/lib/errors";
@@ -57,6 +78,30 @@ export type TripPlanet = {
   waitingUnits: number;
 };
 
+// One line of a trip list. Earnings come from the frozen delivery charges of its orders.
+export type TripRow = {
+  id: string;
+  number: number;
+  planet: string;
+  status: TripStatus;
+  totalUnits: number;
+  earningsCents: number;
+  fuelCostCents: number;
+  profitCents: number;
+  createdAt: Date;
+  completedAt: Date | null;
+};
+
+export type AdmiralTripRow = TripRow & { captainName: string };
+
+export type AdmiralTripDetail = TripDetail & {
+  captainName: string;
+  earningsCents: number;
+  profitCents: number;
+};
+
+export type TripFilter = { status?: TripStatus; planetId?: string };
+
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const ALREADY_LOADED = "The trip is already loaded";
@@ -79,6 +124,60 @@ const earned = db
   .from(orderItems)
   .groupBy(orderItems.orderId)
   .as("earned");
+
+// Delivery charges per trip, summed in SQL from the frozen lines.
+export const tripEarned = db
+  .select({
+    tripId: orders.tripId,
+    earningsCents:
+      sql<number>`sum(${orderItems.units} * ${orderItems.unitDeliveryChargeCents})::int`.as(
+        "trip_earnings",
+      ),
+  })
+  .from(orderItems)
+  .innerJoin(orders, eq(orders.id, orderItems.orderId))
+  .where(isNotNull(orders.tripId))
+  .groupBy(orders.tripId)
+  .as("trip_earned");
+
+const tripEarnings = sql<number>`coalesce(${tripEarned.earningsCents}, 0)`;
+
+async function listTrips(where: SQL | undefined): Promise<AdmiralTripRow[]> {
+  return db
+    .select({
+      id: trips.id,
+      number: trips.number,
+      planet: planets.name,
+      status: trips.status,
+      totalUnits: trips.totalUnits,
+      earningsCents: tripEarnings,
+      fuelCostCents: trips.fuelCostCents,
+      // A cancelled trip never flew: it burned no fuel and counts as zero.
+      profitCents: sql<number>`case when ${trips.status} = 'CANCELLED' then 0 else ${tripEarnings} - ${trips.fuelCostCents} end`,
+      createdAt: trips.createdAt,
+      completedAt: trips.completedAt,
+      captainName: user.name,
+    })
+    .from(trips)
+    .innerJoin(planets, eq(planets.id, trips.planetId))
+    .innerJoin(user, eq(user.id, trips.captainId))
+    .leftJoin(tripEarned, eq(tripEarned.tripId, trips.id))
+    .where(where)
+    .orderBy(desc(trips.createdAt), desc(trips.number));
+}
+
+const withoutCaptain = (row: AdmiralTripRow): TripRow => ({
+  id: row.id,
+  number: row.number,
+  planet: row.planet,
+  status: row.status,
+  totalUnits: row.totalUnits,
+  earningsCents: row.earningsCents,
+  fuelCostCents: row.fuelCostCents,
+  profitCents: row.profitCents,
+  createdAt: row.createdAt,
+  completedAt: row.completedAt,
+});
 
 async function loadCaptainOrders(where: SQL | undefined): Promise<CaptainOrder[]> {
   const rows = await db
@@ -190,6 +289,45 @@ export async function getMyTrip(id: string): Promise<TripDetail> {
   const trip = isUuid(id) ? await loadTrip(mine(id, captain.id)) : null;
   if (!trip) throw new AppError("NOT_FOUND");
   return trip;
+}
+
+export async function listMyTrips(): Promise<TripRow[]> {
+  const captain = await requireRole("captain");
+  return (await listTrips(eq(trips.captainId, captain.id))).map(withoutCaptain);
+}
+
+// The money of one own trip, for its detail page.
+export async function getMyTripRow(id: string): Promise<TripRow> {
+  const captain = await requireRole("captain");
+  const [row] = isUuid(id) ? await listTrips(mine(id, captain.id)) : [];
+  if (!row) throw new AppError("NOT_FOUND");
+  return withoutCaptain(row);
+}
+
+export async function listAllTrips(filter: TripFilter = {}): Promise<AdmiralTripRow[]> {
+  await requireRole("admiral");
+  return listTrips(
+    and(
+      filter.status ? eq(trips.status, filter.status) : undefined,
+      filter.planetId && isUuid(filter.planetId) ? eq(trips.planetId, filter.planetId) : undefined,
+    ),
+  );
+}
+
+export async function getAnyTrip(id: string): Promise<AdmiralTripDetail> {
+  await requireRole("admiral");
+  if (!isUuid(id)) throw new AppError("NOT_FOUND");
+  const [trip, [row]] = await Promise.all([
+    loadTrip(eq(trips.id, id)),
+    listTrips(eq(trips.id, id)),
+  ]);
+  if (!trip || !row) throw new AppError("NOT_FOUND");
+  return {
+    ...trip,
+    captainName: row.captainName,
+    earningsCents: row.earningsCents,
+    profitCents: row.profitCents,
+  };
 }
 
 export async function createTrip(planetId: string): Promise<{ id: string }> {

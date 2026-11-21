@@ -16,9 +16,9 @@ One file per feature. Each file answers the same six questions, in the same orde
 | Locations | [02-locations.md](02-locations.md) | 0 | 2 |
 | Settings | [03-settings.md](03-settings.md) | 2 | 6 |
 | Orders | [04-orders.md](04-orders.md) | 3 | 10 |
-| Trips | [05-trips.md](05-trips.md) | 9 | 16 |
+| Trips | [05-trips.md](05-trips.md) | 9 | 17 |
 | Reports | [06-reports.md](06-reports.md) | 0 | 8 |
-| **Total** | | **18** | **45** |
+| **Total** | | **18** | **46** |
 
 ---
 
@@ -104,6 +104,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `listAvailableOrders` | trips | Captain | ACCEPTED orders for the trip's planet, with products and units |
 | `listMyTrips` | trips | Captain | Own trips, paged |
 | `getMyTrip` | trips | Captain | One own trip |
+| `getMyTripRow` | trips | Captain | Earnings, fuel and profit of one own trip |
 | `listAllTrips` | trips | Admiral | Every trip, paged |
 | `getAnyTrip` | trips | Admiral | One trip |
 | `getCompanyTotals` | reports | Admiral | Units, revenue, cost, profit |
@@ -133,11 +134,11 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `/manager/report` | Manager | `getPlanetPurchases`, `getPlanetInProgress` | — |
 | `/captain/trip` | Captain | `getMyOpenTrip`, `listPlanetsForTrip`, `listAvailableOrders` | 10 to 18 |
 | `/captain/trips` | Captain | `listMyTrips`, `getMyEarnings` | — |
-| `/captain/trips/[id]` | Captain | `getMyTrip` | — |
+| `/captain/trips/[id]` | Captain | `getMyTrip`, `getMyTripRow` | — |
 | `/admiral` | Admiral | `getCompanyTotals`, `getPlanetProfitSummary`, `getPlanetProductTable`, `getPipeline`, `getOverdueCount` | — |
-| `/admiral/orders` | Admiral | `listAllOrders` | — |
+| `/admiral/orders` | Admiral | `listAllOrders`, `listPlanetsForAdmiral` | — |
 | `/admiral/orders/[id]` | Admiral | `getAnyOrder` | — |
-| `/admiral/trips` | Admiral | `listAllTrips` | — |
+| `/admiral/trips` | Admiral | `listAllTrips`, `listPlanetsForAdmiral` | — |
 | `/admiral/trips/[id]` | Admiral | `getAnyTrip` | — |
 | `/admiral/products` | Admiral | `listProductsForAdmiral` | 5 |
 | `/admiral/planets` | Admiral | `listPlanetsForAdmiral` | 6 |

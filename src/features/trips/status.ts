@@ -9,6 +9,11 @@ export const TRIP_STATUSES = [
 
 export type TripStatus = (typeof TRIP_STATUSES)[number];
 
+// A status from the URL. Anything unknown is ignored.
+export function parseTripStatus(value: unknown): TripStatus | undefined {
+  return TRIP_STATUSES.find((status) => status === value);
+}
+
 export const TRIP_CAPACITY = 20;
 
 const NEXT: Record<TripStatus, readonly TripStatus[]> = {
@@ -47,6 +52,12 @@ const LABELS: Record<TripStatus, string> = {
 
 export function tripLabel(status: TripStatus): string {
   return LABELS[status];
+}
+
+export function tripTone(status: TripStatus): "neutral" | "info" | "success" | "danger" {
+  if (status === "COMPLETED") return "success";
+  if (status === "CANCELLED") return "danger";
+  return status === "PLANNING" ? "neutral" : "info";
 }
 
 export function tripCode(number: number): string {

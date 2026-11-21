@@ -8,6 +8,7 @@ import {
   orderCode,
   orderTone,
   type OrderStatus,
+  parseOrderStatus,
 } from "./status";
 
 const VALID: [OrderStatus, OrderStatus][] = [
@@ -95,5 +96,15 @@ describe("labels", () => {
 
   it("formats the order code", () => {
     expect(orderCode(1001)).toBe("ORD-1001");
+  });
+});
+
+describe("parseOrderStatus", () => {
+  it.each(ORDER_STATUSES)("accepts %s", (status) => {
+    expect(parseOrderStatus(status)).toBe(status);
+  });
+
+  it.each(["placed", "COMPLETED", "", undefined, ["PLACED"], 1])("ignores %j", (value) => {
+    expect(parseOrderStatus(value)).toBeUndefined();
   });
 });

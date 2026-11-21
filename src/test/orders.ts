@@ -3,6 +3,17 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { divisions, orderEvents, planets, products, sectors } from "@/db/schema";
 import { acceptOrder, placeOrder } from "@/features/orders/service";
+import {
+  addOrderToTrip,
+  createTrip,
+  getMyTrip,
+  markLanded,
+  markLiftedOff,
+  markLoaded,
+  markStopAtSector,
+  markStopDelivered,
+} from "@/features/trips/service";
+import { PLANETS, PRODUCTS } from "@/seed/data";
 import { switchTo } from "./session";
 
 export const CUSTOMER = "customer1@terra.demo";
@@ -73,6 +84,68 @@ export async function acceptedWater(units: number, division?: string) {
   switchTo(MARS_MANAGER);
   await acceptOrder(order.id);
   return order;
+}
+
+// Places an order of any products at today's prices. Leaves that customer signed in.
+export async function placeItems(
+  items: Record<string, number>,
+  division: string,
+  customer = CUSTOMER,
+) {
+  const [{ chargeCents }] = await db
+    .select({ chargeCents: planets.deliveryChargeCents })
+    .from(divisions)
+    .innerJoin(planets, eq(planets.id, divisions.planetId))
+    .where(eq(divisions.id, division));
+  const priced = await db.select().from(products);
+  const lines = Object.entries(items).map(([name, units]) => {
+    const product = priced.find((each) => each.name === name);
+    if (!product) throw new Error(`No product ${name}`);
+    return { productId: product.id, units, priceCents: product.priceCents };
+  });
+  switchTo(customer);
+  return placeOrder({
+    divisionId: division,
+    items: lines.map(({ productId, units }) => ({ productId, units })),
+    expectedTotalCents: lines.reduce((sum, line) => sum + line.units * (line.priceCents + chargeCents), 0),
+    idempotencyKey: randomUUID(),
+  });
+}
+
+export async function acceptAs(manager: string, orderId: string) {
+  switchTo(manager);
+  await acceptOrder(orderId);
+}
+
+// A new trip of this captain holding the given ACCEPTED orders, still PLANNING.
+export async function planTrip(captain: string, planet: string, orderIds: string[]) {
+  switchTo(captain);
+  const { id } = await createTrip(await planetId(planet));
+  for (const orderId of orderIds) await addOrderToTrip(id, orderId);
+  return id;
+}
+
+// Flies a PLANNING trip to the end: every stop delivered, trip COMPLETED.
+export async function flyTrip(captain: string, tripId: string) {
+  switchTo(captain);
+  await markLoaded(tripId);
+  await markLiftedOff(tripId);
+  await markLanded(tripId);
+  for (const stop of (await getMyTrip(tripId)).stops) {
+    await markStopAtSector(tripId, stop.divisionId);
+    await markStopDelivered(tripId, stop.divisionId);
+  }
+}
+
+// Puts prices and charges back to the seed values and wipes the change history.
+export async function resetSettings() {
+  await db.execute(sql`truncate table settings_changes`);
+  for (const { name, priceCents, makingCostCents } of PRODUCTS) {
+    await db.update(products).set({ priceCents, makingCostCents }).where(eq(products.name, name));
+  }
+  for (const { name, deliveryChargeCents, fuelCostCents } of PLANETS) {
+    await db.update(planets).set({ deliveryChargeCents, fuelCostCents }).where(eq(planets.name, name));
+  }
 }
 
 export async function timeline(orderId: string) {

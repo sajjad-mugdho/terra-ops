@@ -5,16 +5,21 @@ import { db } from "@/db";
 import { orderEvents, orderItems, orders, planets, products } from "@/db/schema";
 import { seedReference } from "@/seed/reference";
 import {
+  acceptAs,
   ADMIRAL,
   ALL_ACTORS,
   CAPTAIN,
   clearOrders,
   CUSTOMER,
   deepKeys,
+  flyTrip,
   MARS_D7,
   MARS_MANAGER,
   OTHER_CUSTOMER,
+  placeItems,
   placeWater,
+  planetId,
+  planTrip,
   productId,
   timeline,
   VENUS_D1,
@@ -23,8 +28,10 @@ import {
 import { actAsNobody, signInAll, switchTo } from "@/test/session";
 import {
   acceptOrder,
+  getAnyOrder,
   getMyOrder,
   getPlanetOrder,
+  listAllOrders,
   listMyOrders,
   listPlanetOrders,
   listQueue,
@@ -609,5 +616,103 @@ describe("manager reads", () => {
     switchTo(email);
     await expect(listPlanetOrders()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(getPlanetOrder(placed.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("Admiral orders", () => {
+  async function threeOrders() {
+    const mars = await placeItems({ Water: 3, Machines: 1 }, await MARS_D7());
+    const venus = await placeItems({ Food: 2 }, await VENUS_D1(), OTHER_CUSTOMER);
+    const refused = await placeWater(1);
+    switchTo(MARS_MANAGER);
+    await rejectOrder(refused.id, "Out of stock");
+    return { mars, venus, refused };
+  }
+
+  it("lists every order of every planet and customer", async () => {
+    await threeOrders();
+    switchTo(ADMIRAL);
+    const list = await listAllOrders();
+
+    expect(list.map((order) => [order.destination.planet, order.customerName, order.totalUnits, order.status, order.totalCents])).toEqual([
+      ["Mars", "Mira Chen", 1, "REJECTED", 1500],
+      ["Venus", "Jonas Okafor", 2, "PLACED", 3000],
+      ["Mars", "Mira Chen", 4, "PLACED", 11000],
+    ]);
+  });
+
+  it("filters by status and by planet, and ignores a bad planet ID", async () => {
+    await threeOrders();
+    switchTo(ADMIRAL);
+    expect(await listAllOrders({ status: "REJECTED" })).toHaveLength(1);
+    expect(await listAllOrders({ planetId: await planetId("Venus") })).toHaveLength(1);
+    expect(await listAllOrders({ status: "PLACED", planetId: await planetId("Mars") })).toHaveLength(1);
+    expect(await listAllOrders({ status: "DELIVERED" })).toEqual([]);
+    expect(await listAllOrders({ planetId: "nope" })).toHaveLength(3);
+  });
+
+  it("reads any order with making cost, profit and who did each step", async () => {
+    const { mars } = await threeOrders();
+    await acceptAs(MARS_MANAGER, mars.id);
+    await flyTrip(CAPTAIN, await planTrip(CAPTAIN, "Mars", [mars.id]));
+
+    switchTo(ADMIRAL);
+    const order = await getAnyOrder(mars.id);
+    expect(order).toMatchObject({
+      customerName: "Mira Chen",
+      status: "DELIVERED",
+      productAmountCents: 9000,
+      deliveryChargesCents: 2000,
+      totalCents: 11000,
+      makingCostCents: 6000,
+      profitCents: 3000,
+    });
+    expect(order.items).toEqual([
+      { productName: "Machines", units: 1, unitPriceCents: 6000, unitDeliveryChargeCents: 500, unitMakingCostCents: 4200, lineTotalCents: 6500 },
+      { productName: "Water", units: 3, unitPriceCents: 1000, unitDeliveryChargeCents: 500, unitMakingCostCents: 600, lineTotalCents: 4500 },
+    ]);
+    expect(order.timeline.map((event) => [event.status, event.actorName])).toEqual([
+      ["PLACED", "Mira Chen"],
+      ["ACCEPTED", "Mars Manager"],
+      ["ASSIGNED", "Captain Vega"],
+      ["LOADED", "Captain Vega"],
+      ["LIFTED_OFF", "Captain Vega"],
+      ["LANDED", "Captain Vega"],
+      ["AT_SECTOR", "Captain Vega"],
+      ["DELIVERED", "Captain Vega"],
+    ]);
+  });
+
+  it("keeps cost and profit of an order after the product changed", async () => {
+    const { mars } = await threeOrders();
+    await db.update(products).set({ priceCents: 1, makingCostCents: 9999 }).where(eq(products.name, "Water"));
+    try {
+      switchTo(ADMIRAL);
+      expect(await getAnyOrder(mars.id)).toMatchObject({ makingCostCents: 6000, profitCents: 3000 });
+    } finally {
+      await db.update(products).set({ priceCents: 1000, makingCostCents: 600 }).where(eq(products.name, "Water"));
+    }
+  });
+
+  it("is NOT_FOUND for an unknown order", async () => {
+    switchTo(ADMIRAL);
+    await expect(getAnyOrder(randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(getAnyOrder("abc")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it.each([CUSTOMER, MARS_MANAGER, CAPTAIN])("is FORBIDDEN for %s", async (email) => {
+    const { mars } = await threeOrders();
+    switchTo(email);
+    await expect(listAllOrders()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(getAnyOrder(mars.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("cannot place, accept or reject", async () => {
+    const { mars } = await threeOrders();
+    switchTo(ADMIRAL);
+    await expect(placeOrder(await waterOrder(1))).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(acceptOrder(mars.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(rejectOrder(mars.id, "Not allowed")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(await db.$count(orders, eq(orders.status, "PLACED"))).toBe(2);
   });
 });

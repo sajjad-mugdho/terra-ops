@@ -12,3 +12,8 @@ export function parseDollarsToCents(text: string): number | null {
   const cents = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
   return Number.isSafeInteger(cents) ? cents : null;
 }
+
+// The text a money input starts with: 1250 → "12.50".
+export function centsToDollarText(cents: number): string {
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, parseDollarsToCents } from "./money";
+import { centsToDollarText, formatMoney, parseDollarsToCents } from "./money";
 
 describe("formatMoney", () => {
   it.each([
@@ -33,4 +33,16 @@ describe("parseDollarsToCents", () => {
       expect(parseDollarsToCents(text)).toBeNull();
     },
   );
+});
+
+describe("centsToDollarText", () => {
+  it.each([
+    [1250, "12.50"],
+    [5, "0.05"],
+    [0, "0.00"],
+    [100000000, "1000000.00"],
+  ])("%i -> %s", (cents, text) => {
+    expect(centsToDollarText(cents)).toBe(text);
+    expect(parseDollarsToCents(text)).toBe(cents);
+  });
 });

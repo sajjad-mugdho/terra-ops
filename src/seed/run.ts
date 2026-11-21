@@ -12,8 +12,10 @@ async function main() {
 
   // Imported after the check so nothing connects before the user agreed.
   const { seedReference } = await import("./reference");
+  const { seedHistory } = await import("./history");
   console.log(`Seeding ${target} ...`);
   await seedReference();
+  await seedHistory();
   console.log("Done.");
   process.exit(0);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineTotalCents, mergeLines, orderTotals } from "./pricing";
+import { lineTotalCents, makingCostCents, mergeLines, orderTotals } from "./pricing";
 
 const line = (units: number, unitPriceCents: number, unitDeliveryChargeCents: number) => ({
   units,
@@ -109,5 +109,21 @@ describe("mergeLines", () => {
 
   it("throws INVALID", () => {
     expect(() => mergeLines([])).toThrow(expect.objectContaining({ code: "INVALID" }));
+  });
+});
+
+describe("makingCostCents", () => {
+  it("adds units times unit making cost over every line", () => {
+    expect(
+      makingCostCents([
+        { units: 3, unitMakingCostCents: 600 },
+        { units: 2, unitMakingCostCents: 4200 },
+      ]),
+    ).toBe(10200);
+  });
+
+  it("is 0 for no lines and for a free product", () => {
+    expect(makingCostCents([])).toBe(0);
+    expect(makingCostCents([{ units: 20, unitMakingCostCents: 0 }])).toBe(0);
   });
 });

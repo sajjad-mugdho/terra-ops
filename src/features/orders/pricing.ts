@@ -36,6 +36,11 @@ export function orderTotals(lines: PricedLine[]): OrderTotals {
   };
 }
 
+// Admiral only: what the company spent to make the order.
+export function makingCostCents(lines: { units: number; unitMakingCostCents: number }[]): number {
+  return lines.reduce((sum, line) => sum + line.units * line.unitMakingCostCents, 0);
+}
+
 export type RequestedLine = { productId: string; units: number };
 
 // One line per product, zero lines dropped, and the 1 to 20 unit rule.

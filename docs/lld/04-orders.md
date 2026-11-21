@@ -76,8 +76,8 @@ Messages:
 
 | Function | Returns | Throws |
 |---|---|---|
-| `listAllOrders({ page, q, status, planet, sort })` | Paged list with planet and customer | — |
-| `getAnyOrder(id)` | Order detail plus making cost and profit | `NOT_FOUND` |
+| `listAllOrders({ status, planetId })` | Every order with planet and customer. Paging, search and sort come in Phase 4 | — |
+| `getAnyOrder(id)` | Order detail plus making cost per line, profit, and the actor of each timeline step | `NOT_FOUND` |
 
 **Order detail fields**
 
@@ -96,7 +96,8 @@ Messages:
 
 | Function | Purpose |
 |---|---|
-| `orderTotals(items)` | Units, product amount, delivery charges, customer total. Making cost is added with the Admiral views in Phase 2 |
+| `orderTotals(items)` | Units, product amount, delivery charges, customer total |
+| `makingCostCents(items)` | Admiral only: what the company spent to make the order |
 | `mergeLines(items)` | One line per product, zero lines dropped, 1 to 20 units or `INVALID` |
 | `eventLabel(status, place, leftTrip)` | Timeline text with the real planet, sector and division (D39) |
 | `parseCart`, `cartQuery`, `isCartReady` | The cart in the URL (D38) |

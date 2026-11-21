@@ -16,7 +16,7 @@ import {
 import { requireManagerPlanet, requireRole } from "@/features/auth/session";
 import { getDivisionWithPlanet } from "@/features/locations/service";
 import { AppError } from "@/lib/errors";
-import { lineTotalCents, mergeLines, orderTotals } from "./pricing";
+import { lineTotalCents, makingCostCents, mergeLines, orderTotals } from "./pricing";
 import type { PlaceOrderInput } from "./schemas";
 import { eventLabel, type OrderStatus, type PaymentStatus } from "./status";
 
@@ -70,6 +70,16 @@ export type OrderDetail = {
 };
 
 export type PlanetOrderDetail = OrderDetail & { customerName: string };
+
+export type OrderFilter = { status?: OrderStatus; planetId?: string };
+
+// Admiral only. The one order DTO that carries making cost and profit.
+export type AdmiralOrderDetail = Omit<PlanetOrderDetail, "items" | "timeline"> & {
+  items: (OrderLine & { unitMakingCostCents: number })[];
+  timeline: (TimelineEvent & { actorName: string })[];
+  makingCostCents: number;
+  profitCents: number;
+};
 
 export type QueueOrder = {
   id: string;
@@ -383,4 +393,61 @@ export async function rejectOrder(id: string, reason: string): Promise<void> {
     throw new AppError("INVALID", "Give a reason of 3 to 300 characters");
   }
   await decide(id, { status: "REJECTED", reason: text });
+}
+
+export async function listAllOrders(filter: OrderFilter = {}): Promise<PlanetOrderRow[]> {
+  await requireRole("admiral");
+  const rows = await listOrders(
+    and(
+      filter.status ? eq(orders.status, filter.status) : undefined,
+      filter.planetId && isUuid(filter.planetId) ? eq(orders.planetId, filter.planetId) : undefined,
+    ),
+    [desc(orders.createdAt), desc(orders.number)],
+  );
+  return rows.map(({ order, customerName }) => ({ ...order, customerName }));
+}
+
+export async function getAnyOrder(id: string): Promise<AdmiralOrderDetail> {
+  await requireRole("admiral");
+  if (!isUuid(id)) throw new AppError("NOT_FOUND");
+  const { order, customerName } = await loadOrder(eq(orders.id, id));
+
+  const lines = await db
+    .select({
+      productName: orderItems.productName,
+      units: orderItems.units,
+      unitPriceCents: orderItems.unitPriceCents,
+      unitDeliveryChargeCents: orderItems.unitDeliveryChargeCents,
+      unitMakingCostCents: orderItems.unitMakingCostCents,
+    })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, id))
+    .orderBy(asc(orderItems.productName));
+
+  const events = await db
+    .select({
+      status: orderEvents.status,
+      note: orderEvents.note,
+      tripId: orderEvents.tripId,
+      occurredAt: orderEvents.occurredAt,
+      actorName: user.name,
+    })
+    .from(orderEvents)
+    .innerJoin(user, eq(user.id, orderEvents.actorId))
+    .where(eq(orderEvents.orderId, id))
+    .orderBy(asc(orderEvents.seq));
+
+  const cost = makingCostCents(lines);
+  return {
+    ...order,
+    customerName,
+    items: lines.map((line) => ({ ...line, lineTotalCents: lineTotalCents(line) })),
+    timeline: events.map(({ tripId, ...event }) => ({
+      ...event,
+      label: eventLabel(event.status, order.destination, tripId !== null),
+    })),
+    makingCostCents: cost,
+    // Company profit: the delivery charges belong to the captain (D5).
+    profitCents: order.productAmountCents - cost,
+  };
 }

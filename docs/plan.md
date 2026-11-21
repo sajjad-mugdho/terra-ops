@@ -448,7 +448,7 @@ What it does · live link · demo users · 2-minute tour per role · how to run 
 | C2 | Demo password and email pattern | Confirmed: `terra-demo-2026`, `role.planet@terra.demo` |
 | C3 | Order and trip codes | `ORD-1001`, `TRP-101` |
 | C4 | Currency symbol | Confirmed: `$` |
-| C5 | Default report date range | Last 30 days |
+| C5 | Default report date range | Used as proposed: last 30 days (D41) |
 | C6 | Waiting-time highlight | After 3 days |
 | C7 | Captain sees customer name | Settled: no (D29) |
 | C8 | Where migrations run for production | From the local machine, by command |

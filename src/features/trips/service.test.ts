@@ -6,6 +6,7 @@ import { orders, planets, trips } from "@/db/schema";
 import { getMyOrder, rejectOrder } from "@/features/orders/service";
 import { seedReference } from "@/seed/reference";
 import {
+  acceptAs,
   acceptedWater,
   ADMIRAL,
   ALL_ACTORS,
@@ -13,13 +14,16 @@ import {
   clearOrders,
   CUSTOMER,
   deepKeys,
+  flyTrip,
   MARS_D7,
   MARS_D8,
   MARS_MANAGER,
   MARS_T1,
   OTHER_CAPTAIN,
+  placeItems,
   placeWater,
   planetId,
+  planTrip,
   timeline,
   VENUS_D1,
   VENUS_MANAGER,
@@ -29,9 +33,13 @@ import {
   addOrderToTrip,
   cancelTrip,
   createTrip,
+  getAnyTrip,
   getMyOpenTrip,
   getMyTrip,
+  getMyTripRow,
+  listAllTrips,
   listAvailableOrders,
+  listMyTrips,
   listPlanetsForTrip,
   markLanded,
   markLiftedOff,
@@ -870,5 +878,171 @@ describe("the whole flow", () => {
     ]);
     const times = tracked.timeline.map((event) => event.occurredAt.getTime());
     expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+});
+
+describe("trip history and earnings", () => {
+  it("lists own trips newest first with earnings, fuel and profit", async () => {
+    await flyTrip(CAPTAIN, await planTrip(CAPTAIN, "Mars", [(await acceptedWater(18)).id]));
+    await flyTrip(CAPTAIN, await planTrip(CAPTAIN, "Mars", [(await acceptedWater(5)).id]));
+
+    switchTo(CAPTAIN);
+    const list = await listMyTrips();
+    expect(list.map((trip) => trip.number)).toEqual([102, 101]);
+    expect(list[1]).toMatchObject({
+      planet: "Mars",
+      status: "COMPLETED",
+      totalUnits: 18,
+      earningsCents: 9000,
+      fuelCostCents: 4000,
+      profitCents: 5000,
+    });
+    expect(list[0]).toMatchObject({ totalUnits: 5, earningsCents: 2500, profitCents: -1500 });
+    expect(list[0].completedAt).toBeInstanceOf(Date);
+  });
+
+  it("lists a cancelled trip as zero and an open trip with its expected money", async () => {
+    const order = await acceptedWater(6);
+    switchTo(CAPTAIN);
+    await cancelTrip(await planTrip(CAPTAIN, "Mars", [order.id]));
+    await planTrip(CAPTAIN, "Mars", [order.id]);
+
+    const [open, cancelled] = await listMyTrips();
+    expect(cancelled).toMatchObject({ status: "CANCELLED", totalUnits: 0, earningsCents: 0, profitCents: 0 });
+    expect(open).toMatchObject({
+      status: "PLANNING",
+      totalUnits: 6,
+      earningsCents: 3000,
+      fuelCostCents: 4000,
+      profitCents: -1000,
+      completedAt: null,
+    });
+  });
+
+  it("keeps the frozen fuel cost after the planet's fuel cost changed", async () => {
+    const tripId = await planTrip(CAPTAIN, "Mars", [(await acceptedWater(10)).id]);
+    await db.update(planets).set({ fuelCostCents: 9900 }).where(eq(planets.name, "Mars"));
+    try {
+      await flyTrip(CAPTAIN, tripId);
+      expect(await getMyTripRow(tripId)).toMatchObject({ fuelCostCents: 4000, profitCents: 1000 });
+    } finally {
+      await db.update(planets).set({ fuelCostCents: 4000 }).where(eq(planets.name, "Mars"));
+    }
+  });
+
+  it("never shows a captain another captain's trips", async () => {
+    const tripId = await planTrip(CAPTAIN, "Mars", [(await acceptedWater(3)).id]);
+
+    switchTo(OTHER_CAPTAIN);
+    expect(await listMyTrips()).toEqual([]);
+    await expect(getMyTripRow(tripId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(getMyTrip(tripId)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(getMyTripRow("abc")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("gives the captain no price, making cost, customer or captain name", async () => {
+    const tripId = await planTrip(CAPTAIN, "Mars", [(await acceptedWater(3)).id]);
+    const keys = deepKeys([await listMyTrips(), await getMyTripRow(tripId)]);
+    expect(keys.filter((key) => /price|makingcost|customer|captain/i.test(key))).toEqual([]);
+  });
+
+  it.each([CUSTOMER, MARS_MANAGER, ADMIRAL])("is FORBIDDEN for %s", async (email) => {
+    switchTo(email);
+    await expect(listMyTrips()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(getMyTripRow(randomUUID())).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("Admiral trips", () => {
+  async function twoTrips() {
+    const mars = await planTrip(CAPTAIN, "Mars", [(await acceptedWater(18)).id]);
+    await flyTrip(CAPTAIN, mars);
+    const order = await placeItems({ Water: 4 }, await VENUS_D1());
+    await acceptAs(VENUS_MANAGER, order.id);
+    const venus = await planTrip(OTHER_CAPTAIN, "Venus", [order.id]);
+    return { mars, venus };
+  }
+
+  it("lists every trip of every captain with captain, planet, units and money", async () => {
+    await twoTrips();
+    switchTo(ADMIRAL);
+    const list = await listAllTrips();
+
+    expect(list).toHaveLength(2);
+    expect(list[0]).toMatchObject({
+      captainName: "Captain Orion",
+      planet: "Venus",
+      status: "PLANNING",
+      totalUnits: 4,
+      earningsCents: 1200,
+      fuelCostCents: 2500,
+      profitCents: -1300,
+    });
+    expect(list[1]).toMatchObject({
+      captainName: "Captain Vega",
+      planet: "Mars",
+      status: "COMPLETED",
+      totalUnits: 18,
+      earningsCents: 9000,
+      profitCents: 5000,
+    });
+  });
+
+  it("filters by status and by planet, and ignores a bad planet ID", async () => {
+    await twoTrips();
+    switchTo(ADMIRAL);
+    expect((await listAllTrips({ status: "COMPLETED" })).map((trip) => trip.planet)).toEqual(["Mars"]);
+    expect((await listAllTrips({ planetId: await planetId("Venus") })).map((trip) => trip.planet)).toEqual(["Venus"]);
+    expect(await listAllTrips({ status: "CANCELLED" })).toEqual([]);
+    expect(await listAllTrips({ planetId: "nope" })).toHaveLength(2);
+  });
+
+  it("reads any trip with its orders, stops, captain and profit", async () => {
+    const { mars } = await twoTrips();
+    switchTo(ADMIRAL);
+    const trip = await getAnyTrip(mars);
+
+    expect(trip).toMatchObject({
+      captainName: "Captain Vega",
+      status: "COMPLETED",
+      totalUnits: 18,
+      earningsCents: 9000,
+      fuelCostCents: 4000,
+      profitCents: 5000,
+    });
+    expect(trip.orders).toHaveLength(1);
+    expect(trip.stops.map((stop) => stop.state)).toEqual(["delivered"]);
+  });
+
+  it("is NOT_FOUND for an unknown trip", async () => {
+    switchTo(ADMIRAL);
+    await expect(getAnyTrip(randomUUID())).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(getAnyTrip("abc")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it.each([CUSTOMER, MARS_MANAGER, CAPTAIN])("is FORBIDDEN for %s", async (email) => {
+    const { mars } = await twoTrips();
+    switchTo(email);
+    await expect(listAllTrips()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(getAnyTrip(mars)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("cannot run any captain step", async () => {
+    const { venus } = await twoTrips();
+    const waiting = await acceptedWater(2);
+    switchTo(ADMIRAL);
+    const forbidden = { code: "FORBIDDEN" };
+
+    await expect(createTrip(await planetId("Mars"))).rejects.toMatchObject(forbidden);
+    await expect(addOrderToTrip(venus, waiting.id)).rejects.toMatchObject(forbidden);
+    await expect(removeOrderFromTrip(venus, waiting.id)).rejects.toMatchObject(forbidden);
+    await expect(cancelTrip(venus)).rejects.toMatchObject(forbidden);
+    await expect(markLoaded(venus)).rejects.toMatchObject(forbidden);
+    await expect(markLiftedOff(venus)).rejects.toMatchObject(forbidden);
+    await expect(markLanded(venus)).rejects.toMatchObject(forbidden);
+    await expect(markStopAtSector(venus, await VENUS_D1())).rejects.toMatchObject(forbidden);
+    await expect(markStopDelivered(venus, await VENUS_D1())).rejects.toMatchObject(forbidden);
+    switchTo(OTHER_CAPTAIN);
+    expect((await getMyOpenTrip())?.status).toBe("PLANNING");
   });
 });

@@ -11,7 +11,7 @@ Small pieces every feature uses. Nothing here knows about orders or trips.
 | `src/lib/errors.ts` | `AppError` |
 | `src/lib/action-result.ts` | `ActionResult`, `FormState`, `toActionResult()` |
 | `src/lib/pg-error.ts` | `isPgError()`: reads a Postgres error code and constraint through Drizzle's wrapper |
-| `src/lib/money.ts` | `formatMoney()`, `parseDollarsToCents()` |
+| `src/lib/money.ts` | `formatMoney()`, `parseDollarsToCents()`, `centsToDollarText()` |
 | `src/lib/dates.ts` | `formatUtc()`, `formatDuration()`, `addDays()` |
 | `src/lib/pagination.ts` | `parsePage()`, `pageWindow()` |
 | `src/lib/auth.ts`, `auth-client.ts` | Better Auth config (exists) |
@@ -50,6 +50,7 @@ flowchart LR
 |---|---|---|
 | `formatMoney(cents)` | `1250` → `$12.50` | Negative → `-$15.00` |
 | `parseDollarsToCents(text)` | `"12.5"` → `1250` | Works on the string. Rejects negatives, 3+ decimals, non-numbers |
+| `centsToDollarText(cents)` | `1250` → `12.50` | The starting text of a money input |
 | `formatUtc(date)` | Date → `21 Nov 2026, 14:05 UTC` | Always UTC, always labelled |
 | `formatDuration(from, to)` | → `1d 2h`, `1h 5m`, `5m` | Under a minute → `0m` |
 | `addDays(date, n)` | → Date | Used for ETA |
@@ -68,7 +69,8 @@ flowchart LR
 | `DataTable` | Server | Table with an empty state |
 | `Pagination` | Server | Previous, next, "Page x of y" as links |
 | `ListFilters` | Client | Search box and status select, as a GET form |
-| `DateRangeFilter` | Client | From and to, as a GET form |
+| `DateRangeFilter` | Client | From and to, as a GET form. Stops a start date after the end date |
+| `SelectFilters` | Server | Status and planet selects of the Admiral lists, as a GET form |
 | `AutoRefresh` | Client | `router.refresh()` every 10s while the tab is visible |
 | `SubmitButton` | Client | Disabled and shows a spinner while pending |
 | `ActionButton` | Client | One button that runs one Server Action with hidden fields and shows its error |

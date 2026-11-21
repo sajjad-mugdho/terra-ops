@@ -1,7 +1,10 @@
 import { formatUtc } from "@/lib/dates";
 import type { TimelineEvent } from "../service";
 
-export function OrderTimeline({ events }: { events: TimelineEvent[] }) {
+// actorName is only in the Admiral DTO: it shows who did each step.
+export type ShownEvent = TimelineEvent & { actorName?: string };
+
+export function OrderTimeline({ events }: { events: ShownEvent[] }) {
   return (
     <ol className="flex flex-col gap-3 border-l pl-4">
       {events.map((event, index) => (
@@ -11,7 +14,10 @@ export function OrderTimeline({ events }: { events: TimelineEvent[] }) {
           {event.note && event.note !== event.label && (
             <p className="text-muted-foreground">{event.note}</p>
           )}
-          <p className="text-xs text-muted-foreground">{formatUtc(event.occurredAt)}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatUtc(event.occurredAt)}
+            {event.actorName && ` · ${event.actorName}`}
+          </p>
         </li>
       ))}
     </ol>

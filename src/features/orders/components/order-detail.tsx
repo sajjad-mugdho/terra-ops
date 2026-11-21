@@ -6,10 +6,12 @@ import { formatMoney } from "@/lib/money";
 import { etaText, waitingText } from "../eta";
 import type { OrderDetail } from "../service";
 import { customerLabel, orderTone } from "../status";
-import { OrderTimeline } from "./order-timeline";
+import { OrderTimeline, type ShownEvent } from "./order-timeline";
 import { ProgressSteps } from "./progress-steps";
 
-export function OrderDetailView({ order }: { order: OrderDetail & { customerName?: string } }) {
+type Shown = Omit<OrderDetail, "timeline"> & { timeline: ShownEvent[]; customerName?: string };
+
+export function OrderDetailView({ order }: { order: Shown }) {
   const { destination, trip } = order;
   const eta = etaText({
     status: order.status,
