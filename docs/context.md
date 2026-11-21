@@ -149,6 +149,13 @@ Reference material (data model, status machines, money, permissions) is in `plan
 
 ## Changelog
 
+### 2026-11-22 · Phase 0 test gaps closed
+
+- Audit of slices 0.1 to 0.5 against their acceptance criteria. No app code changed: the gaps were all missing tests.
+- Added: database constraint tests (planets, sectors, products, user role, one manager per planet), page guard tests for all 16 role and page pairs, `proxy.ts` tests, Server Action tests (all 15 demo logins land on their role home, sign-in, sign-up, log out), and a check that the test run is connected to `terra_ops_test`.
+- 161 automated tests. Not covered by a test: one session read per request (`cache()` only works inside a React render).
+- Not done: 0.6 live deploy.
+
 ### 2026-11-21 · Phase 0, slices 0.1 to 0.5
 
 - 0.1: `lib/errors`, `action-result`, `money`, `dates` with unit tests. Test database set up by the test run. CI workflow added.
