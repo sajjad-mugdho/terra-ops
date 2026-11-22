@@ -14,6 +14,7 @@ const NAV: Record<Role, { href: Route; label: string }[]> = {
     { href: "/admiral/trips", label: "Trips" },
     { href: "/admiral/products", label: "Products" },
     { href: "/admiral/planets", label: "Planets" },
+    { href: "/admiral/history", label: "History" },
   ],
   manager: [
     { href: "/manager/queue", label: "Order queue" },

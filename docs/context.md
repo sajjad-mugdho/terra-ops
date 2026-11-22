@@ -138,6 +138,8 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D53 | One filter form | `ListFilters` is a Server Component with a plain GET form. It replaces `SelectFilters`. It sends no `page`, so a new filter starts at page 1. "Clear" shows only when a filter is set |
 | D54 | Auto-refresh details | `AutoRefresh` is on three pages only: customer tracking until the order is DELIVERED or REJECTED, the manager queue, and the captain's trip while it is PLANNING. The timer logic is `lib/polling` (no React), so it has unit tests. "Updated <time> UTC" is the server time of the last render, so it stands still while the network is down |
 | D55 | Captain trip list | "Trip history" on `/captain/trips` lists every own trip, the open one too, with a status filter. The "Expected" box reads the open trip from `getMyOpenTrip` and no longer from the list, because the list is paged |
+| D56 | Settings history list | `listSettingsChanges({ page, entity })` is Admiral only and returns a paged list of `{ id, changedAt, actorName, entity, entityName, field, oldValueCents, newValueCents }`. No email, no user ID, no target ID. Order: `changed_at` newest first, then field, then ID, because the fields of one save share a timestamp. `entity` is `product` or `planet`. Anything else means all |
+| D57 | Settings history page | `/admiral/history` is read-only and has no Server Action. Labels ("Water · price") and the signed difference ("+$2.00") are pure functions in `settings/history`. The difference is not coloured: a higher price is not good or bad by itself. An empty filter result shows the same "No changes yet" with a Clear button. "History" is in the Admiral nav, and the product and planet pages link to their own filter |
 
 ## Changes vs project.md
 
@@ -164,7 +166,8 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | 2 Money and reports | Slices 2.1 to 2.7 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 3 Client pains | Slices 3.1 and 3.2 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 4 Usability | Slices 4.1 to 4.3 done locally and in CI. The two-browser check on the live URL waits for slice 0.6 |
-| 5 to 6 | Not started |
+| 5 History | Slice 5.1 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
+| 6 | Not started |
 
 ## Open questions
 
@@ -172,6 +175,16 @@ Reference material (data model, status machines, money, permissions) is in `plan
 - Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
 
 ## Changelog
+
+### 2026-11-22 · Phase 5, settings history
+
+- 5.1 Settings history: `/admiral/history` lists every change of a price, making cost, delivery charge or fuel cost. Columns: time in UTC, who, what ("Water · price", "Mars · fuel cost"), old value, new value, difference with its sign. Filter: all, products, planets. Newest first, 20 rows per page.
+- `listSettingsChanges` in `settings/service` (one count query, one page query). `settings/history` holds the pure parts: the entity filter, the labels, the signed difference. `HistoryTable` is a Server Component.
+- "History" is in the Admiral nav. The product and planet pages have a "Change history" link to their own filter. `ListFilters` accepts the new path.
+- New decisions D56 and D57. No schema change, no new action, no new dependency.
+- 1044 automated tests (998 before). New: entity parsing, labels and signed difference, and service tests for the empty list, names resolved, newest first by time and not by insert order, one row per field with the same timestamp, a value changed back, a save that changed nothing, the entity filter and its count, an unknown entity, 21, 25 and 45 rows across pages with no row repeated or missing, a page past the end, the exact DTO keys with no email, reading changes nothing, the database rejecting an edit and a delete of a history row, FORBIDDEN for customer, manager and captain, UNAUTHORIZED without a session, the settings actions being only the two edit actions, and the seeded Water change visible through the service.
+- Checked over HTTP against a production build. On a fresh seeded database: the Admiral sees "Water · price", $9.00, $10.00, "+$1.00", "Ada Sterling" and the UTC time, the product filter keeps the row, the planet filter shows "No changes yet", an unknown `entity` and a bad `page` show everything. On a database without changes: "No changes yet". A manager and a captain are redirected to their own home, a visitor to `/login`. No email in the page.
+- Not done: the phase gate on the live URL (waits for slice 0.6). Not run in a browser: the click path "change a price, then open History" is covered by service tests, not by a browser run.
 
 ### 2026-11-22 · Phase 4, usability
 

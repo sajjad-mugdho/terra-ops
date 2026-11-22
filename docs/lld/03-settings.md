@@ -9,10 +9,11 @@ Lets the Grand Admiral change prices and charges, and keeps a record of every ch
 | File | Holds |
 |---|---|
 | `db/schema/catalog.ts` | `products`, `settings_changes` |
-| `features/settings/service.ts` | 6 functions (`listSettingsChanges` comes with the history page in Phase 5) |
+| `features/settings/service.ts` | 6 functions |
 | `features/settings/actions.ts` | 2 actions |
 | `features/settings/schemas.ts` | Money input schemas: dollar text to cents |
 | `features/settings/break-even.ts` | Pure: margin, units to cover fuel, money range check |
+| `features/settings/history.ts` | Pure: entity filter from the URL, change label ("Water · price"), signed difference ("+$2.00") |
 | `features/settings/components/` | `ProductTable`, `PlanetTable`, `EditMoneyDialog`, `HistoryTable` |
 | `app/(app)/admiral/products`, `planets`, `history` | Pages |
 
@@ -50,7 +51,7 @@ Input rules for every money field: required · a number · not negative · at mo
 | `updateProduct(id, values)` | Admiral | `{ changed: boolean }` | `NOT_FOUND`, `INVALID` |
 | `listPlanetsForAdmiral()` | Admiral | `[{ id, name, daysFromEarth, deliveryChargeCents, fuelCostCents, unitsToCoverFuel }]` | `FORBIDDEN` |
 | `updatePlanetCharges(id, values)` | Admiral | `{ changed: boolean }` | `NOT_FOUND`, `INVALID` |
-| `listSettingsChanges({ page, entity })` | Admiral | Paged `[{ changedAt, actorName, entityName, field, oldValue, newValue }]` | `FORBIDDEN` |
+| `listSettingsChanges({ page, entity })` | Admiral | Paged `[{ id, changedAt, actorName, entity, entityName, field, oldValueCents, newValueCents }]`. Newest first, then field, then ID | `FORBIDDEN` |
 
 `unitsToCoverFuel` = fuel cost ÷ delivery charge, rounded up. `null` when the charge is 0.
 
@@ -82,4 +83,6 @@ sequenceDiagram
 - Price below making cost is allowed, with a warning.
 - Only `listProducts()` is safe for non-admirals. It has no cost field.
 - An action that fails returns the typed text in `values`, so the dialog shows it again.
+- The history page is read-only. It has no action, and the database rejects an update or delete of a history row.
+- A history row never carries an email or an internal ID of the actor or the target (D56).
 - "Units needed" above 20 shows "A full ship cannot cover the fuel cost". A charge of 0 shows "Never covers fuel".

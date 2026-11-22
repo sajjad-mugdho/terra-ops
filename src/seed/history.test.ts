@@ -14,6 +14,7 @@ import {
   getPlanetProfitSummary,
   getPlanetPurchases,
 } from "@/features/reports/service";
+import { listSettingsChanges } from "@/features/settings/service";
 import { getMyOpenTrip, listAvailableOrders, listMyTrips } from "@/features/trips/service";
 import { TRIP_STATUSES } from "@/features/trips/status";
 import { MARS_D7, placeItems } from "@/test/orders";
@@ -162,6 +163,22 @@ describe("seedHistory", () => {
         + (select count(*) from settings_changes where changed_at > now()) as late
     `);
     expect(Number(rows[0].late)).toBe(0);
+  });
+
+  it("shows the Water price change on the Admiral's history page", async () => {
+    switchTo(ADMIRAL);
+    const list = await listSettingsChanges();
+
+    expect(list).toMatchObject({ total: 1, page: 1, pageCount: 1 });
+    expect(list.rows[0]).toMatchObject({
+      actorName: "Ada Sterling",
+      entity: "product",
+      entityName: "Water",
+      field: "price",
+      oldValueCents: OLD_WATER_PRICE_CENTS,
+      newValueCents: 1000,
+    });
+    expect((await listSettingsChanges({ entity: "planet" })).total).toBe(0);
   });
 
   it("keeps the old Water price on old orders, with the price change in the history", async () => {

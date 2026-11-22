@@ -26,6 +26,7 @@ import {
   listPlanetsForAdmiral,
   listProducts,
   listProductsForAdmiral,
+  listSettingsChanges,
   updatePlanetCharges,
   updateProduct,
 } from "./service";
@@ -384,5 +385,228 @@ describe("updatePlanetCharges", () => {
     expect((await listPlanetsForTrip()).find((planet) => planet.id === mars)?.fuelCostCents).toBe(9900);
     await createTrip(mars);
     expect((await getMyOpenTrip())?.fuelCostCents).toBe(9900);
+  });
+});
+
+describe("listSettingsChanges", () => {
+  const at = (minute: number) => new Date(Date.UTC(2026, 0, 1, 12, minute));
+
+  async function admiralId() {
+    const [row] = await db.select({ id: user.id }).from(user).where(eq(user.email, ADMIRAL));
+    return row.id;
+  }
+
+  // Written straight to the table, so a test can choose the time of each change.
+  async function addPriceChanges(times: Date[], product = "Water") {
+    const actorId = await admiralId();
+    const id = await productId(product);
+    await db.insert(settingsChanges).values(
+      times.map((changedAt, index) => ({
+        actorId,
+        productId: id,
+        field: "price" as const,
+        oldValueCents: 1000 + index,
+        newValueCents: 1001 + index,
+        changedAt,
+      })),
+    );
+  }
+
+  it("is empty when nothing was changed yet", async () => {
+    switchTo(ADMIRAL);
+    expect(await listSettingsChanges()).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+    expect(await listSettingsChanges({ entity: "product", page: 3 })).toMatchObject({ rows: [], total: 0, page: 1 });
+  });
+
+  it("lists a product and a planet change newest first with the names resolved", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 600 });
+    await updatePlanetCharges(await planetId("Mars"), { deliveryChargeCents: 500, fuelCostCents: 9900 });
+    const before = (await history()).length;
+
+    const list = await listSettingsChanges();
+
+    expect(before).toBe(2);
+    expect(list).toMatchObject({ total: 2, page: 1, pageCount: 1 });
+    expect(list.rows.map(({ entity, entityName, field }) => [entity, entityName, field])).toEqual([
+      ["planet", "Mars", "fuel_cost"],
+      ["product", "Water", "price"],
+    ]);
+    expect(list.rows[1]).toMatchObject({
+      actorName: "Ada Sterling",
+      oldValueCents: 1000,
+      newValueCents: 1200,
+    });
+    expect(list.rows[1].changedAt).toBeInstanceOf(Date);
+    expect(list.rows[0].changedAt.getTime()).toBeGreaterThanOrEqual(list.rows[1].changedAt.getTime());
+  });
+
+  it("returns one row per field with the same time when one save changes two fields", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Food"), { priceCents: 1300, makingCostCents: 750 });
+    await updatePlanetCharges(await planetId("Venus"), { deliveryChargeCents: 1, fuelCostCents: 2 });
+
+    const { rows } = await listSettingsChanges();
+
+    expect(rows.map(({ entityName, field }) => `${entityName} ${field}`)).toEqual([
+      "Venus delivery_charge",
+      "Venus fuel_cost",
+      "Food price",
+      "Food making_cost",
+    ]);
+    expect(rows[0].changedAt).toEqual(rows[1].changedAt);
+    expect(rows[2].changedAt).toEqual(rows[3].changedAt);
+  });
+
+  it("keeps both rows when a value is changed back to the original", async () => {
+    switchTo(ADMIRAL);
+    const water = await productId("Water");
+    await updateProduct(water, { priceCents: 1200, makingCostCents: 600 });
+    await updateProduct(water, { priceCents: 1000, makingCostCents: 600 });
+
+    const { rows } = await listSettingsChanges();
+
+    expect(rows.map((row) => [row.oldValueCents, row.newValueCents])).toEqual([
+      [1200, 1000],
+      [1000, 1200],
+    ]);
+  });
+
+  it("does not list a save that changed nothing", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1000, makingCostCents: 600 });
+    expect((await listSettingsChanges()).total).toBe(0);
+  });
+
+  it("filters by entity and counts only the filtered rows", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 650 });
+    await updatePlanetCharges(await planetId("Mars"), { deliveryChargeCents: 500, fuelCostCents: 9900 });
+
+    const productsOnly = await listSettingsChanges({ entity: "product" });
+    const planetsOnly = await listSettingsChanges({ entity: "planet" });
+
+    expect(productsOnly.total).toBe(2);
+    expect(productsOnly.rows.every((row) => row.entity === "product" && row.entityName === "Water")).toBe(true);
+    expect(planetsOnly.total).toBe(1);
+    expect(planetsOnly.rows[0]).toMatchObject({ entity: "planet", entityName: "Mars", field: "fuel_cost" });
+    expect((await listSettingsChanges()).total).toBe(3);
+  });
+
+  it("treats an unknown entity as all", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 600 });
+    await updatePlanetCharges(await planetId("Mars"), { deliveryChargeCents: 500, fuelCostCents: 9900 });
+
+    const list = await listSettingsChanges({ entity: "user' or 1=1 --" as never });
+
+    expect(list.total).toBe(2);
+  });
+
+  it("orders by time and not by the order of the inserts", async () => {
+    switchTo(ADMIRAL);
+    await addPriceChanges([at(5), at(30), at(1), at(12)]);
+
+    const { rows } = await listSettingsChanges();
+
+    expect(rows.map((row) => row.changedAt)).toEqual([at(30), at(12), at(5), at(1)]);
+  });
+
+  it("pages 45 changes in 20s with no row repeated or missing", async () => {
+    switchTo(ADMIRAL);
+    await addPriceChanges(Array.from({ length: 45 }, (_, index) => at(index)));
+
+    const pages = [
+      await listSettingsChanges({ page: 1 }),
+      await listSettingsChanges({ page: 2 }),
+      await listSettingsChanges({ page: 3 }),
+    ];
+
+    expect(pages.map((page) => page.rows.length)).toEqual([20, 20, 5]);
+    expect(pages.every((page) => page.total === 45 && page.pageCount === 3)).toBe(true);
+    const times = pages.flatMap((page) => page.rows.map((row) => row.changedAt.getTime()));
+    expect(new Set(pages.flatMap((page) => page.rows.map((row) => row.id))).size).toBe(45);
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect(pages[0].rows[0].changedAt).toEqual(at(44));
+    expect(pages[2].rows[4].changedAt).toEqual(at(0));
+  });
+
+  it("keeps a stable order across pages when every change has the same time", async () => {
+    switchTo(ADMIRAL);
+    await addPriceChanges(Array.from({ length: 25 }, () => at(0)));
+
+    const first = await listSettingsChanges({ page: 1 });
+    const second = await listSettingsChanges({ page: 2 });
+    const ids = [...first.rows, ...second.rows].map((row) => row.id);
+
+    expect(new Set(ids).size).toBe(25);
+    expect(ids).toEqual([...ids].sort());
+  });
+
+  it("shows the last page for a page past the end and page 1 for a bad page", async () => {
+    switchTo(ADMIRAL);
+    await addPriceChanges(Array.from({ length: 21 }, (_, index) => at(index)));
+
+    expect(await listSettingsChanges({ page: 99 })).toMatchObject({ page: 2, pageCount: 2, total: 21 });
+    expect((await listSettingsChanges({ page: 99 })).rows).toHaveLength(1);
+    expect(await listSettingsChanges({ page: 0 })).toMatchObject({ page: 1 });
+    expect(await listSettingsChanges({ page: Number.NaN })).toMatchObject({ page: 1 });
+  });
+
+  it("returns only what the page shows: no email, no user or target ID", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 600 });
+
+    const { rows } = await listSettingsChanges();
+
+    expect(Object.keys(rows[0]).sort()).toEqual([
+      "actorName",
+      "changedAt",
+      "entity",
+      "entityName",
+      "field",
+      "id",
+      "newValueCents",
+      "oldValueCents",
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("@terra.demo");
+  });
+
+  it("changes nothing when it is read", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 600 });
+    const before = await history();
+
+    await listSettingsChanges();
+    await listSettingsChanges({ entity: "planet", page: 2 });
+
+    expect(await history()).toEqual(before);
+    expect((await listProductsForAdmiral()).find((product) => product.name === "Water")?.priceCents).toBe(1200);
+  });
+
+  it("keeps every row: the database rejects an edit and a delete", async () => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 600 });
+    const frozen = { cause: { code: "23001", constraint: "settings_changes_append_only" } };
+
+    await expect(db.update(settingsChanges).set({ newValueCents: 1 })).rejects.toMatchObject(frozen);
+    await expect(db.delete(settingsChanges)).rejects.toMatchObject(frozen);
+
+    expect((await listSettingsChanges()).rows[0]).toMatchObject({ oldValueCents: 1000, newValueCents: 1200 });
+  });
+
+  it.each(OTHERS)("is FORBIDDEN for %s, also with a filter", async (email) => {
+    switchTo(ADMIRAL);
+    await updateProduct(await productId("Water"), { priceCents: 1200, makingCostCents: 600 });
+
+    switchTo(email);
+
+    await expect(listSettingsChanges()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(listSettingsChanges({ entity: "product", page: 2 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("is UNAUTHORIZED without a session", async () => {
+    actAsNobody();
+    await expect(listSettingsChanges()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

@@ -1,11 +1,13 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { planets, products, settingsChanges } from "@/db/schema";
+import { planets, products, settingsChanges, user } from "@/db/schema";
 import { requireRole, requireUser } from "@/features/auth/session";
 import { AppError } from "@/lib/errors";
+import { type Paged, pageWindow } from "@/lib/pagination";
 import { isMoneyCents, marginCents, unitsToCoverFuel } from "./break-even";
+import { parseEntity, type SettingEntity, type SettingField } from "./history";
 import type { PlanetChargeValues, ProductValues } from "./schemas";
 
 export type ProductForSale = { id: string; name: string; priceCents: number };
@@ -25,7 +27,16 @@ export type PlanetForAdmiral = {
   unitsToCoverFuel: number | null;
 };
 
-type SettingField = (typeof settingsChanges.$inferInsert)["field"];
+export type SettingsChange = {
+  id: string;
+  changedAt: Date;
+  actorName: string;
+  entity: SettingEntity;
+  entityName: string;
+  field: SettingField;
+  oldValueCents: number;
+  newValueCents: number;
+};
 
 type Change = { field: SettingField; oldValueCents: number; newValueCents: number };
 
@@ -156,4 +167,46 @@ export async function updatePlanetCharges(
       .values(changes.map((change) => ({ ...change, actorId: admiral.id, planetId: id })));
     return { changed: true };
   });
+}
+
+export async function listSettingsChanges(
+  filter: { page?: number; entity?: SettingEntity } = {},
+): Promise<Paged<SettingsChange>> {
+  await requireRole("admiral");
+  const entity = parseEntity(filter.entity);
+  const where =
+    entity === "product"
+      ? isNotNull(settingsChanges.productId)
+      : entity === "planet"
+        ? isNotNull(settingsChanges.planetId)
+        : undefined;
+
+  const [{ total }] = await db.select({ total: count() }).from(settingsChanges).where(where);
+  const { limit, offset, ...window } = pageWindow(filter.page ?? 1, total);
+  const rows = await db
+    .select({
+      id: settingsChanges.id,
+      changedAt: settingsChanges.changedAt,
+      actorName: user.name,
+      productId: settingsChanges.productId,
+      entityName: sql<string>`coalesce(${products.name}, ${planets.name})`,
+      field: settingsChanges.field,
+      oldValueCents: settingsChanges.oldValueCents,
+      newValueCents: settingsChanges.newValueCents,
+    })
+    .from(settingsChanges)
+    .innerJoin(user, eq(user.id, settingsChanges.actorId))
+    .leftJoin(products, eq(products.id, settingsChanges.productId))
+    .leftJoin(planets, eq(planets.id, settingsChanges.planetId))
+    .where(where)
+    // Fields of one save share a timestamp, so field and id keep the pages stable.
+    .orderBy(desc(settingsChanges.changedAt), asc(settingsChanges.field), asc(settingsChanges.id))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    rows: rows.map(({ productId, ...row }) => ({ ...row, entity: productId ? "product" : "planet" })),
+    total,
+    ...window,
+  };
 }

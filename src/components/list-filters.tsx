@@ -14,7 +14,13 @@ type Select = {
 };
 
 type Props = {
-  path: "/customer/orders" | "/manager/orders" | "/captain/trips" | "/admiral/orders" | "/admiral/trips";
+  path:
+    | "/customer/orders"
+    | "/manager/orders"
+    | "/captain/trips"
+    | "/admiral/orders"
+    | "/admiral/trips"
+    | "/admiral/history";
   search?: { label: string; placeholder: string; value: string };
   selects?: Select[];
 };

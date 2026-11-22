@@ -4,6 +4,7 @@ import { settingsChanges } from "@/db/schema";
 import { seedReference } from "@/seed/reference";
 import { ADMIRAL, ALL_ACTORS, CAPTAIN, MARS_MANAGER, planetId, productId, resetSettings } from "@/test/orders";
 import { actAsNobody, signInAll, switchTo } from "@/test/session";
+import * as actions from "./actions";
 import { updatePlanetChargesAction, updateProductAction } from "./actions";
 import { listPlanetsForAdmiral, listProductsForAdmiral } from "./service";
 
@@ -130,5 +131,11 @@ describe("updatePlanetChargesAction", () => {
     switchTo(MARS_MANAGER);
     const data = form({ id: await planetId("Mars"), deliveryCharge: "1", fuelCost: "1" });
     expect(await updatePlanetChargesAction(null, data)).toMatchObject({ ok: false, error: "Not allowed" });
+  });
+});
+
+describe("settings actions", () => {
+  it("has no action that edits or deletes a history row", () => {
+    expect(Object.keys(actions).sort()).toEqual(["updatePlanetChargesAction", "updateProductAction"]);
   });
 });
