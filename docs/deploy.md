@@ -9,7 +9,7 @@ The Neon project, the Vercel project and every secret belong to the owner (D26).
 | Thing | Who has it | Used for |
 |---|---|---|
 | GitHub repo `sajjad-mugdho/terra-ops` | Owner | Code, CI |
-| Neon project, Postgres 17 | Owner creates it | Live database |
+| Neon project (exists, Postgres 18, see D61) | Owner | Live database |
 | Vercel project | Owner creates it | Live app |
 | Node 24+ on a local machine | Owner | Migrations, seed, smoke test |
 
@@ -44,18 +44,19 @@ Rules for secrets:
 
 ### 3.1 Neon
 
-1. Create a project. Postgres 17. Pick a region.
-2. Copy the **pooled** connection string. Keep the direct one at hand too.
+The project exists and is linked (D61). The strings are in the git-ignored `.env.neon`: `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct).
+
+`neon init`, `neon deploy` and `neon env pull` write the Neon string into `.env`. After any of them, move the Neon lines to `.env.neon` and put the local `DATABASE_URL` back, or the next local `db:seed` and test run hit the live data.
 
 ### 3.2 Migrate and seed, from the local machine
 
 Migrations and the seed are run by command, never in the Vercel build (D58).
 
 ```bash
-export DATABASE_URL='<Neon connection string>'
-npm run db:migrate
+set -a && . ./.env.neon && set +a
+DATABASE_URL="$DATABASE_URL_UNPOOLED" npm run db:migrate
 npm run db:seed -- --yes
-unset DATABASE_URL
+unset DATABASE_URL DATABASE_URL_UNPOOLED
 ```
 
 - Both commands read `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` from the local `.env`. Their values do not matter here: the seed only hashes passwords.
