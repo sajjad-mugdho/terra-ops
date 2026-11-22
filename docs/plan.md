@@ -24,7 +24,7 @@ What the reviewer should remember: money and status are always correct, and it i
 |---|---|---|
 | `/login` | Public | Email + password, plus "Log in as" demo buttons |
 | `/sign-up` | Public | Customer sign-up |
-| `/` | Any | Redirects to the role home, or `/login` |
+| `/` | Public | Landing page for a visitor (D65). A signed-in user is redirected to the role home |
 | `/customer` | Customer | Overview: counts, total paid, the newest moving order, recent orders (D63) |
 | `/customer/orders` | Customer | Own orders, status filter, search, pagination |
 | `/customer/orders/new` | Customer | Step 1 build order, step 2 checkout |

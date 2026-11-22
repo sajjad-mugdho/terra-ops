@@ -45,7 +45,8 @@ Four roles, each with its own home:
 
 ## 2. Demo users and a 2-minute tour per role
 
-Open `/login` and click a name under "Demo accounts". No typing needed.
+The live URL opens on a landing page: an orbit of the seven planets, a delivery price calculator and one "Enter as" button per role.
+Or open `/login` and click a name under "Demo accounts". No typing needed.
 To type instead: every demo account has the password `terra-demo-2026`.
 
 | Role | Email | Starts on |
@@ -334,6 +335,8 @@ Every decision from [docs/context.md](docs/context.md), in plain words. The numb
 - **D62** One dashboard shell for every role: sidebar with grouped pages, breadcrumb, light and dark theme from a cookie.
 - **D63** Every role lands on an overview page with its headline numbers. The working pages keep their URLs.
 - **D64** Charts use Recharts through the shadcn chart component. Time series are built in SQL, so empty days are zero. Manager charts never hold cost or profit.
+- **D65** `/` is a public landing page built from `design.md`: dark only, its own token scope, CSS-only motion that stops under reduced motion. Signed-in users still go straight to their home.
+- **D66** The landing page reads planets and products without a session, and only what a customer sees at checkout. A test pins the allowed fields, so no cost can leak.
 
 ### Process
 
@@ -400,7 +403,7 @@ npm run build
 
 ### Smoke test
 
-Checks a running, seeded app: pages load, visitors are redirected, one account per role signs in and lands on its home, a customer cannot open staff pages.
+Checks a running, seeded app: the landing page and the auth pages load, visitors are redirected from the role pages, one account per role signs in and lands on its home, a customer cannot open staff pages.
 
 ```bash
 npm run build && npm run start     # in one terminal

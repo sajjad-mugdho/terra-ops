@@ -33,6 +33,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
+  --color-body: var(--body);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
@@ -136,5 +137,196 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* design.md: the public landing page is dark only, so it carries its own tokens. */
+.landing {
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #ffffff;
+  --body: #dadbdf;
+  --card: #191919;
+  --card-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #0a0a0a;
+  --muted: #1a1c20;
+  --muted-foreground: #7d8187;
+  --border: #212327;
+  --input: #363a3f;
+  --ring: #ffffff;
+  --radius: 0.5rem;
+  --sunset: #ff7a17;
+  --sunset-soft: #ffc285;
+  --dusk: #7c3aed;
+  --twilight: #c4b5fd;
+  --breeze: #a0c3ec;
+}
+
+/* No white flash when a phone overscrolls the dark page. */
+body:has(.landing) {
+  background: #0a0a0a;
+}
+
+@keyframes landing-orbit {
+  to {
+    rotate: calc(var(--start) + 360deg);
+  }
+}
+
+@keyframes landing-orbit-back {
+  to {
+    rotate: calc(var(--start) * -1 - 360deg);
+  }
+}
+
+@keyframes landing-twinkle {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes landing-fly {
+  0% {
+    left: var(--x1);
+    top: var(--y1);
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: var(--x2);
+    top: var(--y2);
+    opacity: 0;
+  }
+}
+
+@keyframes landing-rumble {
+  50% {
+    translate: 1.5px 0;
+  }
+}
+
+@keyframes landing-liftoff {
+  to {
+    translate: 0 -120vh;
+  }
+}
+
+@keyframes landing-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-fill-x {
+  from {
+    scale: 0 1;
+  }
+}
+
+@keyframes landing-fill-y {
+  from {
+    scale: 1 0;
+  }
+}
+
+@keyframes landing-travel-x {
+  from {
+    left: 0;
+  }
+}
+
+@keyframes landing-travel-y {
+  from {
+    top: 0;
+  }
+}
+
+/* In the components layer so Tailwind utilities still win. */
+@layer components {
+  .orbit-ring {
+    rotate: var(--start);
+    animation: landing-orbit var(--period) linear infinite;
+  }
+
+  .orbit-upright {
+    rotate: calc(var(--start) * -1);
+    animation: landing-orbit-back var(--period) linear infinite;
+  }
+
+  .orbit[data-paused] :is(.orbit-ring, .orbit-upright) {
+    animation-play-state: paused;
+  }
+
+  @media (hover: hover) {
+    .orbit:hover :is(.orbit-ring, .orbit-upright) {
+      animation-play-state: paused;
+    }
+  }
+
+  .orbit-star {
+    animation: landing-twinkle 5s ease-in-out infinite;
+  }
+
+  .orbit-flight {
+    left: var(--x1);
+    top: var(--y1);
+    animation: landing-fly 2.6s ease-in-out infinite;
+  }
+
+  .launch-rumble {
+    animation: landing-rumble 0.1s linear infinite;
+  }
+
+  .launch-liftoff {
+    animation: landing-liftoff 1.5s cubic-bezier(0.6, 0, 0.9, 0.5) forwards;
+  }
+
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .flight-fill {
+        animation: landing-fill-y linear both;
+        animation-timeline: view();
+      }
+
+      .flight-rocket {
+        animation: landing-travel-y linear both;
+        animation-timeline: view();
+      }
+
+      @media (min-width: 768px) {
+        .flight-fill {
+          animation-name: landing-fill-x;
+          animation-range: cover 20% cover 60%;
+        }
+
+        .flight-rocket {
+          animation-name: landing-travel-x;
+          animation-range: cover 20% cover 60%;
+        }
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orbit-ring,
+    .orbit-upright,
+    .orbit-star,
+    .launch-rumble {
+      animation: none;
+    }
+
+    .orbit-flight {
+      left: var(--x2);
+      top: var(--y2);
+      animation: none;
+    }
+
+    .launch-liftoff {
+      animation: landing-fade 0.4s forwards;
+    }
   }
 }

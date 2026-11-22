@@ -104,7 +104,8 @@ npm run smoke -- https://<live-url>      # live
 |---|---|
 | `/api/auth/ok` answers | The app is up and the auth handler is mounted |
 | `/login` and `/sign-up` load, demo accounts are listed | Pages render |
-| A visitor on `/`, `/admiral`, `/manager`, `/captain`, `/customer` goes to `/login` | The proxy guard works |
+| `/` loads for a visitor, lists the planets and shows no cost | The landing page renders and its public read works |
+| A visitor on `/admiral`, `/manager`, `/captain`, `/customer` goes to `/login` | The proxy guard works |
 | One account per role signs in | The database is reachable, migrated and seeded. `BETTER_AUTH_URL` matches the URL |
 | Each role lands on its own home and can open it | Role routing and the first service read of each role |
 | A customer on a staff URL is sent home | Role guards |
@@ -123,7 +124,7 @@ Run on the live URL, in a private window, with the browser console and network t
 
 | # | As | Do | Expect |
 |---|---|---|---|
-| 1 | Visitor | Open the live URL | Login page with demo accounts |
+| 1 | Visitor | Open the live URL, press "Try the demo" | Landing page, then the login page with demo accounts |
 | 2 | New customer | Sign up, place a 3-unit order to Mars | Tracking page, "Order placed", "Paid" |
 | 3 | Mars manager | Accept it | Leaves the queue |
 | 4 | Captain | Start a Mars trip, add the order, see expected profit | Loss warning for a small trip |

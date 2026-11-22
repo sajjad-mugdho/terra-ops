@@ -19,7 +19,8 @@ Everything about this project is reachable from here. Start with the question, o
 | What was decided, and what is still open | `context.md` (this file) |
 | Whether every client requirement is covered, and the known gaps | `traceability.md` |
 | How the system is shaped and why, trade-offs | `hld.md` |
-| How one feature works: files, data, actions, functions, flow | `lld/01-auth.md` to `lld/06-reports.md` |
+| How one feature works: files, data, actions, functions, flow | `lld/01-auth.md` to `lld/07-landing.md` |
+| The look of the public landing page: colors, type, shapes | `../design.md` (D65) |
 | The full list of Server Actions, service functions, route handlers, pages, URL parameters | `lld/README.md` |
 | Shared helpers, errors, components, guard chain | `lld/00-shared.md` |
 | Tables, ERD, constraints, indexes, what the database guards | `database.md` |
@@ -44,7 +45,8 @@ Everything about this project is reachable from here. Start with the question, o
 | `database.md` | Us | Database design and ERD |
 | `plan.md` | Us | Reference: rules, seed, deploy. Its data model moved to `database.md` |
 | `deploy.md` | Us | Runbook: deploy, environment, smoke test, walkthrough |
-| `phases/` | Us | Work order: 29 vertical slices |
+| `phases/` | Us | Work order: 36 vertical slices |
+| `../design.md` | Owner | Design system of the landing page (D65). The signed-in app does not use it |
 
 If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan.md`, then `project.md`.
 
@@ -144,11 +146,13 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D57 | Settings history page | `/admiral/history` is read-only and has no Server Action. Labels ("Water · price") and the signed difference ("+$2.00") are pure functions in `settings/history`. The difference is not coloured: a higher price is not good or bad by itself. An empty filter result shows the same "No changes yet" with a Clear button. "History" is in the Admiral nav, and the product and planet pages link to their own filter |
 | D58 | Production migrations and seed | C8 settled: `npm run db:migrate` and `npm run db:seed -- --yes` run by command from a developer machine with `DATABASE_URL` set to Neon for that terminal only. Never in the Vercel build, so a failed build cannot half-migrate production. There is no `vercel.json`: Vercel's Next.js defaults are enough. Steps in `deploy.md` |
 | D59 | Env validation | `parseEnv` in `src/env.ts`: `DATABASE_URL` must be a `postgres://` or `postgresql://` URL, `BETTER_AUTH_SECRET` at least 32 characters, `BETTER_AUTH_URL` an http or https URL. An error lists every broken variable as "missing" or "invalid" and never prints a value. On Vercel (`VERCEL=1`) a `BETTER_AUTH_URL` on localhost stops the build |
-| D60 | Smoke test and repo check | `npm run smoke [url]` (`scripts/smoke.mjs`, no dependency) checks a running, seeded app: pages load, visitors are redirected, one account per role signs in and opens its home, a customer is kept out of staff pages, a wrong password gets 401. No health route was added: Better Auth serves `/api/auth/ok` and a sign-in is the database check. `npm run check:repo` fails when a `.env`, key or agent file is tracked or was ever committed. CI runs the repo check first, and after the build it seeds, starts `next start` and runs the smoke test |
+| D60 | Smoke test and repo check | `npm run smoke [url]` (`scripts/smoke.mjs`, no dependency) checks a running, seeded app: the landing page and the auth pages load, visitors are redirected from the role pages, one account per role signs in and opens its home, a customer is kept out of staff pages, a wrong password gets 401. No health route was added: Better Auth serves `/api/auth/ok` and a sign-in is the database check. `npm run check:repo` fails when a `.env`, key or agent file is tracked or was ever committed. CI runs the repo check first, and after the build it seeds, starts `next start` and runs the smoke test |
 | D61 | Neon project and the Neon CLI | The live database is the Neon project `solitary-glitter-66639599`, branch `production`, region `aws-ap-southeast-1`, Postgres 18 (local and CI stay on 17; all migrations and triggers apply unchanged). `neon init` linked it and wrote `neon.ts` (Postgres only, no Neon Auth) and the git-ignored `.neon`. It added `@neon/config` and `@neon/env` for `neon.ts`; app code does not import them. The driver stays node-postgres with the pooled string, as the Neon guidance says to keep the existing driver. `neon init`, `neon deploy` and `neon env pull` overwrite `DATABASE_URL` in `.env` with the Neon string, so the Neon variables live in the git-ignored `.env.neon` and `.env` stays local. Migrate uses `DATABASE_URL_UNPOOLED`, the app uses the pooled `DATABASE_URL` |
-| D62 | Visual design | shadcn/ui dashboard layout in the default neutral theme, light and dark. One shell for every role: a sidebar with grouped pages and icons that collapses to icons and becomes a drawer on phones, a header with a breadcrumb and a theme toggle, content in cards. The theme is a `theme` cookie that the root layout reads, so there is no flash and no theme library. Pages use tokens from `app/globals.css`, never raw colors. A status is a dot plus a label, never color alone |
+| D62 | Visual design | For the signed-in app (the landing page has its own look, D65): shadcn/ui dashboard layout in the default neutral theme, light and dark. One shell for every role: a sidebar with grouped pages and icons that collapses to icons and becomes a drawer on phones, a header with a breadcrumb and a theme toggle, content in cards. The theme is a `theme` cookie that the root layout reads, so there is no flash and no theme library. Pages use tokens from `app/globals.css`, never raw colors. A status is a dot plus a label, never color alone |
 | D63 | Overview pages are the role homes | Every role lands on an overview: `/admiral`, `/manager`, `/captain`, `/customer` (`ROLE_HOME`). It answers "what needs me now" with headline numbers, charts and the next items, and links to the working pages. The working pages keep their URLs (`/manager/queue`, `/captain/trip`, `/customer/orders`) |
 | D64 | Charts | Recharts through the shadcn `chart` component, the one library added for this (asked and approved). Two generic client components: `MoneyTrendChart` (money over time) and `MoneyBarChart` (ranked bars or columns). One y axis per chart, exact amounts in the tooltip, a legend when there are two series, no animation because live pages refresh. Colors are `--chart-1` to `--chart-5`, a palette checked for color-blind separation on both card surfaces. Time series are built in SQL with `generate_series`, so empty days are zero: by day up to 92 days, by month up to 10 years, then by year (`reports/series.ts`). Manager series never hold cost or profit |
+| D65 | Landing page | `/` is a public landing page for a visitor. A signed-in user is still redirected to the role home. Its look comes from `design.md`, not from the dashboard theme: dark only, one near-black canvas, weight 400 type with tight tracking (Geist stands in for Universal Sans, as `design.md` allows), uppercase Geist Mono labels, pill buttons with one white filled pill per view, flat cards with hairline borders, accent colors only in the planet illustration. The tokens are scoped to `.landing` in `app/globals.css`, so the dashboard is untouched. `design.md` asks for no backdrop, so the orbit is a line illustration with flat dots and faint stars, no glow and no gradient. Five sections: hero with an orbit of the planets, numbers, how an order moves through the four roles, a cost calculator, a launch pad. No new library: the orbit, the scroll rocket and the launch are CSS, and all motion stops under `prefers-reduced-motion`. The planet list is the keyboard control, the orbit is a pointer extra, and the orbit has a pause button. References came from the 21st.dev catalog through its MCP server (free tier: search, and two code pulls): the layout of "Orbital Hero Section" and "Footer with Big Wordmark" (MIT). All code is written for this repo |
+| D66 | Public catalog read | `landing/service.ts` `getLandingCatalog` has no session check, on purpose. It returns planet name, days from Earth and delivery charge, and product name and price: what any customer sees at checkout, and sign-up is open. It never returns an id, a fuel cost, a making cost or a profit, and a test pins the allowed keys. Every number on the landing page comes from this read or from a rule constant (`MAX_UNITS`, `TRIP_CAPACITY`, `OVERDUE_DAYS`), and the calculator uses the checkout formula `lineTotalCents`. The "Enter as" buttons reuse `demoLoginAction` |
 
 ## Changes vs project.md
 
@@ -163,7 +167,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 
 ## Plan
 
-Reference material (data model, status machines, money, permissions) is in `plan.md`. The work order is in `phases/`: 7 phase files, 29 vertical slices, each with acceptance criteria, edge cases and tests. Items still waiting for confirmation are in its section 15.
+Reference material (data model, status machines, money, permissions) is in `plan.md`. The work order is in `phases/`: 9 phase files, 36 vertical slices, each with acceptance criteria, edge cases and tests. Items still waiting for confirmation are in its section 15.
 
 ## Phase status
 
@@ -178,6 +182,7 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | 5 History | Slice 5.1 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 6 Ship | 6.2 README done. Everything in 6.1 and 6.4 that needs no live URL is done locally and in CI: runbook, env validation, smoke test, repo check. Waiting for the owner: the Neon and Vercel projects (slice 0.6), the 13-step walkthrough on the live URL, the video (6.3), making the repo public |
 | 7 Dashboard redesign | Slices 7.1 to 7.4 done locally. Checked by screenshot for every role at 1440px, and the Admiral pages at 390px and in dark. The gate on the live URL waits for the push |
+| 8 Landing page | Slices 8.1 to 8.3 done locally. Checked by screenshot at 1440px and 390px: a planet selected, the scroll rocket, the launch sequence, reduced motion, no horizontal scroll. The gate on the live URL waits for the push |
 
 ## Open questions
 
@@ -186,6 +191,15 @@ Reference material (data model, status machines, money, permissions) is in `plan
 - The live URL and the video link are still to be added to `README.md` and to this file.
 
 ## Changelog
+
+### 2026-11-22 · Phase 8, landing page
+
+- New phase 8 (`phases/phase-8-landing.md`), decisions D65 and D66, and `lld/07-landing.md`. The owner asked for a landing page on `/` with planets, a rocket, an orbit, some fun and some interaction, following `design.md`, with ideas from the 21st.dev MCP server.
+- `design.md` is back in the repo root. It was dropped with the first redesign and is now the design system of the landing page only (D62 covers the signed-in app).
+- New feature `features/landing`: `service.ts` (`getLandingCatalog`, public), pure `orbit.ts` (planet looks, star field, route geometry) and `steps.ts` (the four roles), and the components `LandingPage`, `OrbitExplorer`, `CountUp`, `HowItWorks`, `DemoEntryForm`, `CostCalculator`, `LaunchPad`, `LandingFooter`.
+- `/` renders the landing page for a visitor. A signed-in user is redirected as before. `app/globals.css` gained the `.landing` token scope and the landing keyframes.
+- No schema change, no new Server Action, no new dependency. The smoke test checks that `/` loads, lists the planets and shows no cost.
+- 21st.dev: the free tier gave catalog search and two code pulls. AI generation is off on that plan, so nothing was generated there.
 
 ### 2026-11-22 · Phase 7, dashboard redesign
 

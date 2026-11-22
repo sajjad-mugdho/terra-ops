@@ -72,7 +72,13 @@ async function main() {
   const signUp = await get("/sign-up");
   check("sign-up page loads", signUp.status === 200, `status ${signUp.status}`);
 
-  for (const path of ["/", "/admiral", "/manager", "/captain", "/customer"]) {
+  const landing = await get("/");
+  const landingHtml = await landing.text();
+  check("landing page loads for a visitor", landing.status === 200, `status ${landing.status}`);
+  check("landing page lists the planets (database reachable)", landingHtml.includes("Neptune"));
+  check("landing page never shows a fuel or making cost", !/fuel cost|making cost/i.test(landingHtml));
+
+  for (const path of ["/admiral", "/manager", "/captain", "/customer"]) {
     const response = await get(path);
     check(`visitor on ${path} goes to /login`, redirectPath(response) === "/login", `status ${response.status}`);
   }

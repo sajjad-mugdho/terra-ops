@@ -109,7 +109,7 @@
 - [ ] The app shell shows only the nav links of the current role.
 - [ ] A manager sees their planet name in the shell.
 - [ ] Log out ends the session and returns to `/login`. The back button does not show protected content.
-- [ ] `/` sends a signed-in user to their home and a visitor to `/login`.
+- [ ] `/` sends a signed-in user to their home and a visitor to `/login`. (Since Phase 8 a visitor sees the landing page instead.)
 
 ### Edge cases
 

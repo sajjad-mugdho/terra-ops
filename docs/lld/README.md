@@ -18,7 +18,8 @@ One file per feature. Each file answers the same six questions, in the same orde
 | Orders | [04-orders.md](04-orders.md) | 3 | 10 |
 | Trips | [05-trips.md](05-trips.md) | 9 | 17 |
 | Reports | [06-reports.md](06-reports.md) | 0 | 8 |
-| **Total** | | **18** | **46** |
+| Landing | [07-landing.md](07-landing.md) | 0 | 1 |
+| **Total** | | **18** | **47** |
 
 ---
 
@@ -89,6 +90,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `getCurrentUser` | auth | Any | Current user or null |
 | `listLocationTree` | locations | Any signed-in | Planets → sectors → divisions |
 | `listProducts` | settings | Any signed-in | Products with price, no cost |
+| `getLandingCatalog` | landing | Public | Planets (name, days, delivery charge) and products (name, price). No id, no cost (D66) |
 | `listProductsForAdmiral` | settings | Admiral | Products with price, cost, margin |
 | `listPlanetsForAdmiral` | settings | Admiral | Planets with charges and break-even units |
 | `listSettingsChanges` | settings | Admiral | Paged change history |
@@ -127,7 +129,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 |---|---|---|---|
 | `/login` | Public | demo user list | 1, 3 |
 | `/sign-up` | Public | — | 2 |
-| `/` | Any | `getCurrentUser` | — |
+| `/` | Public. A signed-in user goes to the role home | `getCurrentUser`, `getLandingCatalog` | 3 |
 | `/customer` | Customer | `getMyOrderSummary`, `listMyOrders` | — |
 | `/customer/orders` | Customer | `listMyOrders` | — |
 | `/customer/orders/new` | Customer | `listLocationTree`, `listProducts` | 7 |
