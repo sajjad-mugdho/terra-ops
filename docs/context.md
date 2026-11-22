@@ -26,7 +26,8 @@ Everything about this project is reachable from here. Start with the question, o
 | Status machines | `plan.md` §4, diagrams in `hld.md` §7 |
 | Money formulas and the counting rule | `plan.md` §5, `lld/06-reports.md` |
 | Who may do what | `plan.md` §6 |
-| Seed data, CI, deploy steps | `plan.md` §11, §12 |
+| Seed data, CI | `plan.md` §11, §12 |
+| How to deploy, environment variables, smoke test, walkthrough, submission checklist | `deploy.md` |
 | What to build next, in which order | `phases/README.md` |
 | Acceptance criteria, edge cases and tests of a slice | `phases/phase-N-*.md` |
 | The first brief and early decisions | `project.md` (background only) |
@@ -42,6 +43,7 @@ Everything about this project is reachable from here. Start with the question, o
 | `lld/` | Us | Low-level design per feature, API lists |
 | `database.md` | Us | Database design and ERD |
 | `plan.md` | Us | Reference: rules, seed, deploy. Its data model moved to `database.md` |
+| `deploy.md` | Us | Runbook: deploy, environment, smoke test, walkthrough |
 | `phases/` | Us | Work order: 29 vertical slices |
 
 If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan.md`, then `project.md`.
@@ -77,7 +79,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | `"type": "module"` | Removes ESM warnings from Vitest and the Better Auth CLI |
 | Node >= 24 | Matches the Vercel runtime |
 | Local Postgres on port 5434 | Avoids clashing with other local databases |
-| Env validated with Zod in `src/env.ts` | A missing or wrong env var fails at startup, not mid-request |
+| Env validated with Zod in `src/env.ts` | A missing or wrong env var fails at build and startup, not mid-request. The message names the variable, never its value (D59) |
 
 ## Locked decisions
 
@@ -140,6 +142,9 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D55 | Captain trip list | "Trip history" on `/captain/trips` lists every own trip, the open one too, with a status filter. The "Expected" box reads the open trip from `getMyOpenTrip` and no longer from the list, because the list is paged |
 | D56 | Settings history list | `listSettingsChanges({ page, entity })` is Admiral only and returns a paged list of `{ id, changedAt, actorName, entity, entityName, field, oldValueCents, newValueCents }`. No email, no user ID, no target ID. Order: `changed_at` newest first, then field, then ID, because the fields of one save share a timestamp. `entity` is `product` or `planet`. Anything else means all |
 | D57 | Settings history page | `/admiral/history` is read-only and has no Server Action. Labels ("Water · price") and the signed difference ("+$2.00") are pure functions in `settings/history`. The difference is not coloured: a higher price is not good or bad by itself. An empty filter result shows the same "No changes yet" with a Clear button. "History" is in the Admiral nav, and the product and planet pages link to their own filter |
+| D58 | Production migrations and seed | C8 settled: `npm run db:migrate` and `npm run db:seed -- --yes` run by command from a developer machine with `DATABASE_URL` set to Neon for that terminal only. Never in the Vercel build, so a failed build cannot half-migrate production. There is no `vercel.json`: Vercel's Next.js defaults are enough. Steps in `deploy.md` |
+| D59 | Env validation | `parseEnv` in `src/env.ts`: `DATABASE_URL` must be a `postgres://` or `postgresql://` URL, `BETTER_AUTH_SECRET` at least 32 characters, `BETTER_AUTH_URL` an http or https URL. An error lists every broken variable as "missing" or "invalid" and never prints a value. On Vercel (`VERCEL=1`) a `BETTER_AUTH_URL` on localhost stops the build |
+| D60 | Smoke test and repo check | `npm run smoke [url]` (`scripts/smoke.mjs`, no dependency) checks a running, seeded app: pages load, visitors are redirected, one account per role signs in and opens its home, a customer is kept out of staff pages, a wrong password gets 401. No health route was added: Better Auth serves `/api/auth/ok` and a sign-in is the database check. `npm run check:repo` fails when a `.env`, key or agent file is tracked or was ever committed. CI runs the repo check first, and after the build it seeds, starts `next start` and runs the smoke test |
 
 ## Changes vs project.md
 
@@ -167,14 +172,27 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | 3 Client pains | Slices 3.1 and 3.2 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 4 Usability | Slices 4.1 to 4.3 done locally and in CI. The two-browser check on the live URL waits for slice 0.6 |
 | 5 History | Slice 5.1 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
-| 6 | Not started |
+| 6 Ship | 6.2 README done. Everything in 6.1 and 6.4 that needs no live URL is done locally and in CI: runbook, env validation, smoke test, repo check. Waiting for the owner: the Neon and Vercel projects (slice 0.6), the 13-step walkthrough on the live URL, the video (6.3), making the repo public |
 
 ## Open questions
 
-- Confirmations C8 and C9 in `plan.md` §15 (C1 to C4 and C7 are settled, C5, C6 and C10 are used as proposed in D41, D46 and D51).
-- Slice 0.6 needs the Neon pooled connection string and the Vercel project from the user (D26). The Phase 1 gate on the live URL waits for it too.
+- C9 in `plan.md` §15: the video is planned and not recorded yet. Every other confirmation is settled (C8 in D58).
+- Slice 0.6 needs the Neon and Vercel projects from the user (D26). Every phase gate on the live URL, the Phase 6 walkthrough and the video wait for it. The steps are in `deploy.md`.
+- The live URL and the video link are still to be added to `README.md` and to this file.
 
 ## Changelog
+
+### 2026-11-22 · Phase 6, ship (repo side)
+
+- 6.2 README: rewritten in the 9 sections of the slice. Demo accounts and a tour per role, what was done well and why, architecture with one request flow diagram, how correctness is protected, trade-offs, every decision D1 to D60 in plain words, out of scope and what comes next, local setup, tests, smoke test, environment variables.
+- `docs/deploy.md`: runbook for Neon and Vercel, the three environment variables and their rules, migrate and seed by command, later deploys, the smoke test, the 13-step walkthrough, the submission checklist, and what to do when something goes wrong, including rotating a leaked secret.
+- `src/env.ts`: `parseEnv` (D59). `.env.example` explains each variable.
+- `scripts/smoke.mjs` and `scripts/check-repo.mjs`, as `npm run smoke` and `npm run check:repo` (D60). CI: full checkout, repo check, then after the build seed, `next start` and the smoke test.
+- New decisions D58 to D60. C8 is settled. No schema change, no new page, no new action, no new dependency, no feature change.
+- 1058 automated tests (1044 before). New: 14 for `parseEnv`: each variable missing, an empty value, every problem listed at once, a short secret and a non-Postgres URL rejected without the value in the message, a non-http auth URL, localhost on Vercel in three spellings, a deployed URL on Vercel.
+- Checked against a production build on a fresh migrated and seeded database: the smoke test, 25 checks, all pass. The same steps on a clean clone of the branch, following the README as written. The repo check passes on all 14 commits: only `.env.example` was ever committed.
+- Found by the smoke test: Better Auth limits sign-in to 3 per 10 seconds per IP in production. The script waits and retries.
+- Not done, needs the owner: slice 0.6 (Neon and Vercel projects, live URL), the 13 steps on the live URL, the checks for console errors, phone width and keyboard use on the live URL, the video (6.3), making the repo public. No deploy was made and no credential was used.
 
 ### 2026-11-22 · Phase 5, settings history
 

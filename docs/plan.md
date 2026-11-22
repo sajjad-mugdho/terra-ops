@@ -408,14 +408,15 @@ No browser end-to-end tests. The flows are checked by hand on the live URL at th
 
 ## 12. CI and deploy
 
-**CI (D21):** one GitHub Actions workflow on every push and pull request. Postgres 17 service container. Steps: install, migrate the test database, `typecheck`, `lint`, `test`, `build`. Env vars are dummy values.
+**CI (D21):** one GitHub Actions workflow on every push and pull request. Postgres 17 service container. Steps: repo check, install, migrate, `typecheck`, `lint`, `test`, `build`, seed, start the build and run the smoke test (D60). Env vars are dummy values.
 
 **Deploy (D26):** the user creates the Neon project and the Vercel project.
 
 1. Neon: create project, copy the **pooled** connection string.
 2. Vercel: import the GitHub repo. Set `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (the production URL).
-3. Migrations: run `npm run db:migrate` against Neon from the local machine before each deploy that changes the schema **[Confirm: or run migrations in the Vercel build step]**.
+3. Migrations: run `npm run db:migrate` against Neon from the local machine before each deploy that changes the schema (D58).
 4. Seed: `npm run db:seed -- --yes` against Neon.
+5. Check: `npm run smoke -- <live URL>`. Full runbook: `deploy.md`.
 
 **Git:** small commits per finished piece, plain messages, no AI trailers. Before every push: the four checks locally, `context.md` updated, GitHub account confirmed. After every push: check the CI result.
 
@@ -451,6 +452,6 @@ What it does · live link · demo users · 2-minute tour per role · how to run 
 | C5 | Default report date range | Used as proposed: last 30 days (D41) |
 | C6 | Waiting-time highlight | After 3 days. Used as proposed (D46) |
 | C7 | Captain sees customer name | Settled: no (D29) |
-| C8 | Where migrations run for production | From the local machine, by command |
+| C8 | Where migrations run for production | Settled: from the local machine, by command (D58) |
 | C9 | Video walkthrough | Yes, 3 to 5 minutes |
 | C10 | Page size | 20 rows |

@@ -35,10 +35,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history, so the repo check sees every commit.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Repo check
+        run: npm run check:repo
       - name: Install
         run: npm ci
       - name: Migrate
@@ -51,3 +56,12 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+      - name: Seed
+        run: npm run db:seed -- --yes
+      - name: Smoke test
+        run: |
+          npm run start > server.log 2>&1 &
+          npm run smoke
+      - name: Server log
+        if: failure()
+        run: cat server.log || true
