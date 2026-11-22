@@ -69,7 +69,7 @@ unset DATABASE_URL DATABASE_URL_UNPOOLED
 1. Import the GitHub repo. Framework: Next.js. No other setting is needed, and there is no `vercel.json`.
 2. Node.js version: 24.x.
 3. Set the three variables for the Production environment (section 2).
-4. Put the function region next to the Neon region.
+4. Put the function region next to the Neon region. `vercel.json` in the repo does this: `sin1` (Singapore), next to Neon's `aws-ap-southeast-1`. Check it with the `x-vercel-id` response header: the middle part is the function region.
 5. Deploy. Then open the URL Vercel shows.
 6. If that URL is not what `BETTER_AUTH_URL` says, fix the variable and redeploy.
 
@@ -167,6 +167,7 @@ Also check by hand:
 | Login fails on the live URL, pages load | `BETTER_AUTH_URL` is not the URL in the address bar. Fix, redeploy |
 | Every page shows the error page | Database unreachable. Check `DATABASE_URL`, and that migrations ran |
 | First page is slow after a quiet period | The Neon database was asleep. Normal on the free plan |
+| Every page takes 1 to 3 seconds | The functions run far from the database, so every query crosses an ocean. The `x-vercel-id` header shows the function region. It must be `sin1`, as set in `vercel.json` |
 | "too many connections" | The direct string is in use. Switch Vercel to the pooled string |
 | A deploy is broken | Vercel: promote the previous deployment (instant rollback). There is no down migration, so an additive migration is what keeps the old code running |
 | A migration failed halfway | It ran in a transaction, so nothing was applied. Fix and rerun |

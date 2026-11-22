@@ -155,6 +155,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D66 | Public catalog read | `landing/service.ts` `getLandingCatalog` has no session check, on purpose. It returns planet name, days from Earth and delivery charge, and product name and price: what any customer sees at checkout, and sign-up is open. It never returns an id, a fuel cost, a making cost or a profit, and a test pins the allowed keys. Every number on the landing page comes from this read or from a rule constant (`MAX_UNITS`, `TRIP_CAPACITY`, `OVERDUE_DAYS`), and the calculator uses the checkout formula `lineTotalCents`. The "Enter as" buttons reuse `demoLoginAction` |
 | D67 | Login and sign-up pages | Two columns from `lg` up: the form on the left, a moving sky on the right. On a phone only the form shows, and the WebGL context is never opened. Both pages use the `.landing` token scope, so a visitor moves from the landing page to the form without a theme jump. The forms, actions and services are unchanged. The sky is `components/ui/liquid-nebula.tsx`: one WebGL2 fragment shader written for this repo (a noise field warped by itself twice, stars, a planet rim) in the `design.md` accent colors. It starts when first seen, stops off screen, shows one still frame under reduced motion and a still gradient without WebGL2. `lib/webgl.ts` holds the one shader helper both WebGL components share. References from the 21st.dev catalog: "Warp Gradient", "Nebula Space Background", "Split Login" (search only, no code pulled) |
 | D68 | Visual effects and the brief | The client's brief ends with "Usability and clarity matter more than visual effects. Skip the rocket animations." Every signed-in page follows it: no motion, plain tables, forms and charts. The owner chose to keep the effects of the public pages (the black hole hero, the orbit and its rocket, the scroll rocket, the launch pad, the nebula on the auth pages) as a first impression, knowing the brief says otherwise. They hold no workflow, stop under `prefers-reduced-motion`, and can be removed without touching the product. The README states this openly, because the brief also asks to explain choices |
+| D69 | Function region | Vercel runs the functions in `sin1` (Singapore), set in `vercel.json`, because the Neon database is in `aws-ap-southeast-1`. The first live deploys ran in the default `iad1` (Washington): every query crossed the Pacific, and a dashboard page took 1.2 to 2.8 seconds against 0.2 seconds for the same build next to its database |
 
 ## Changes vs project.md
 
@@ -193,6 +194,11 @@ Reference material (data model, status machines, money, permissions) is in `plan
 - The live URL and the video link are still to be added to `README.md` and to this file.
 
 ## Changelog
+
+### 2026-11-22 · Live sign-in works, function region
+
+- `BETTER_AUTH_URL` on Vercel is the live URL and the site was redeployed. `npm run smoke -- https://terra-ops-gold.vercel.app` passes: 27 checks, every role signs in.
+- Measured on the live site as the Admiral: `/admiral` first byte 0.85s, complete in 1.2 to 2.8s. The `x-vercel-id` header showed the functions in `iad1`, far from the database in Singapore. Decision D69 and `vercel.json` move them to `sin1`.
 
 ### 2026-11-22 · README in plain words
 
