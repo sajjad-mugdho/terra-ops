@@ -21,6 +21,7 @@ function parseItems(value: string): unknown {
 }
 
 function revalidateManagerPages() {
+  revalidatePath("/manager");
   revalidatePath("/manager/queue");
   revalidatePath("/manager/orders");
   revalidatePath("/manager/orders/[id]", "page");
@@ -41,6 +42,7 @@ export async function placeOrderAction(_: FormState, formData: FormData): Promis
     if (error instanceof AppError && error.code === "CONFLICT") refresh();
     return toActionResult(error);
   }
+  revalidatePath("/customer");
   revalidatePath("/customer/orders");
   redirect(`/customer/orders/${orderId}`);
 }

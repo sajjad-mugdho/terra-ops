@@ -56,6 +56,7 @@ describe("placeOrderAction", () => {
     const [order] = await db.select().from(orders);
     expect(target).toBe(`/customer/orders/${order.id}`);
     expect(order).toMatchObject({ status: "PLACED", paymentStatus: "PAID", totalUnits: 3 });
+    expect(cache.revalidatePath).toHaveBeenCalledWith("/customer");
     expect(cache.revalidatePath).toHaveBeenCalledWith("/customer/orders");
   });
 
@@ -121,6 +122,7 @@ describe("acceptOrderAction and rejectOrderAction", () => {
     const result = await acceptOrderAction(null, form({ orderId: placed.id }));
 
     expect(result).toEqual({ ok: true, data: { message: "Order accepted" } });
+    expect(cache.revalidatePath).toHaveBeenCalledWith("/manager");
     expect(cache.revalidatePath).toHaveBeenCalledWith("/manager/queue");
     expect(cache.revalidatePath).toHaveBeenCalledWith("/manager/orders");
   });

@@ -32,6 +32,7 @@ import {
   acceptOrder,
   getAnyOrder,
   getMyOrder,
+  getMyOrderSummary,
   getPlanetOrder,
   listAllOrders,
   listMyOrders,
@@ -383,9 +384,32 @@ describe("customer reads", () => {
     expect(keys).not.toContain("customerName");
   });
 
+  it("counts the customer's active and delivered orders and what they paid, without refunds", async () => {
+    const delivered = await acceptedWater(2);
+    await flyTrip(CAPTAIN, await planTrip(CAPTAIN, "Mars", [delivered.id]));
+    await acceptedWater(3);
+    await placeWater(1);
+    const refused = await placeWater(4);
+    switchTo(MARS_MANAGER);
+    await rejectOrder(refused.id, "Out of stock");
+    switchTo(OTHER_CUSTOMER);
+    await placeOrder(await waterOrder(5));
+
+    switchTo(CUSTOMER);
+    expect(await getMyOrderSummary()).toEqual({ active: 2, delivered: 1, totalPaidCents: 9000 });
+    switchTo(OTHER_CUSTOMER);
+    expect(await getMyOrderSummary()).toEqual({ active: 1, delivered: 0, totalPaidCents: 7500 });
+  });
+
+  it("is all zeros for a customer with no orders", async () => {
+    switchTo(CUSTOMER);
+    expect(await getMyOrderSummary()).toEqual({ active: 0, delivered: 0, totalPaidCents: 0 });
+  });
+
   it.each([MARS_MANAGER, CAPTAIN, ADMIRAL])("is FORBIDDEN for %s", async (email) => {
     const placed = await placeWater(1);
     switchTo(email);
+    await expect(getMyOrderSummary()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(listMyOrders()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(getMyOrder(placed.id)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });

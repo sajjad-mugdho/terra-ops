@@ -60,7 +60,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 |---|---|
 | Framework | Next.js 16.4, App Router, Turbopack |
 | Language | TypeScript, strict |
-| UI | Tailwind CSS 4, shadcn/ui |
+| UI | Tailwind CSS 4, shadcn/ui (sidebar, table, chart, tabs), Recharts for charts (D64) |
 | Database | PostgreSQL 17. Local: Docker. Live: Neon (pooled connection string) |
 | ORM | Drizzle ORM, drizzle-kit migrations |
 | Auth | Better Auth, email + password, Drizzle adapter |
@@ -145,6 +145,10 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D58 | Production migrations and seed | C8 settled: `npm run db:migrate` and `npm run db:seed -- --yes` run by command from a developer machine with `DATABASE_URL` set to Neon for that terminal only. Never in the Vercel build, so a failed build cannot half-migrate production. There is no `vercel.json`: Vercel's Next.js defaults are enough. Steps in `deploy.md` |
 | D59 | Env validation | `parseEnv` in `src/env.ts`: `DATABASE_URL` must be a `postgres://` or `postgresql://` URL, `BETTER_AUTH_SECRET` at least 32 characters, `BETTER_AUTH_URL` an http or https URL. An error lists every broken variable as "missing" or "invalid" and never prints a value. On Vercel (`VERCEL=1`) a `BETTER_AUTH_URL` on localhost stops the build |
 | D60 | Smoke test and repo check | `npm run smoke [url]` (`scripts/smoke.mjs`, no dependency) checks a running, seeded app: pages load, visitors are redirected, one account per role signs in and opens its home, a customer is kept out of staff pages, a wrong password gets 401. No health route was added: Better Auth serves `/api/auth/ok` and a sign-in is the database check. `npm run check:repo` fails when a `.env`, key or agent file is tracked or was ever committed. CI runs the repo check first, and after the build it seeds, starts `next start` and runs the smoke test |
+| D61 | Neon project and the Neon CLI | The live database is the Neon project `solitary-glitter-66639599`, branch `production`, region `aws-ap-southeast-1`, Postgres 18 (local and CI stay on 17; all migrations and triggers apply unchanged). `neon init` linked it and wrote `neon.ts` (Postgres only, no Neon Auth) and the git-ignored `.neon`. It added `@neon/config` and `@neon/env` for `neon.ts`; app code does not import them. The driver stays node-postgres with the pooled string, as the Neon guidance says to keep the existing driver. `neon init`, `neon deploy` and `neon env pull` overwrite `DATABASE_URL` in `.env` with the Neon string, so the Neon variables live in the git-ignored `.env.neon` and `.env` stays local. Migrate uses `DATABASE_URL_UNPOOLED`, the app uses the pooled `DATABASE_URL` |
+| D62 | Visual design | shadcn/ui dashboard layout in the default neutral theme, light and dark. One shell for every role: a sidebar with grouped pages and icons that collapses to icons and becomes a drawer on phones, a header with a breadcrumb and a theme toggle, content in cards. The theme is a `theme` cookie that the root layout reads, so there is no flash and no theme library. Pages use tokens from `app/globals.css`, never raw colors. A status is a dot plus a label, never color alone |
+| D63 | Overview pages are the role homes | Every role lands on an overview: `/admiral`, `/manager`, `/captain`, `/customer` (`ROLE_HOME`). It answers "what needs me now" with headline numbers, charts and the next items, and links to the working pages. The working pages keep their URLs (`/manager/queue`, `/captain/trip`, `/customer/orders`) |
+| D64 | Charts | Recharts through the shadcn `chart` component, the one library added for this (asked and approved). Two generic client components: `MoneyTrendChart` (money over time) and `MoneyBarChart` (ranked bars or columns). One y axis per chart, exact amounts in the tooltip, a legend when there are two series, no animation because live pages refresh. Colors are `--chart-1` to `--chart-5`, a palette checked for color-blind separation on both card surfaces. Time series are built in SQL with `generate_series`, so empty days are zero: by day up to 92 days, by month up to 10 years, then by year (`reports/series.ts`). Manager series never hold cost or profit |
 
 ## Changes vs project.md
 
@@ -166,13 +170,14 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | Phase | Status |
 |---|---|
 | Setup | Done |
-| 0 Foundation | Slices 0.1 to 0.5 done locally. 0.6 (live deploy) waits for the Neon and Vercel projects |
+| 0 Foundation | Slices 0.1 to 0.5 done. 0.6: Neon is migrated and seeded, Vercel serves `https://terra-ops-gold.vercel.app`. Login on the live URL fails until `BETTER_AUTH_URL` on Vercel is that URL |
 | 1 Order flow | Slices 1.1 to 1.6 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 2 Money and reports | Slices 2.1 to 2.7 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 3 Client pains | Slices 3.1 and 3.2 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 4 Usability | Slices 4.1 to 4.3 done locally and in CI. The two-browser check on the live URL waits for slice 0.6 |
 | 5 History | Slice 5.1 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 6 Ship | 6.2 README done. Everything in 6.1 and 6.4 that needs no live URL is done locally and in CI: runbook, env validation, smoke test, repo check. Waiting for the owner: the Neon and Vercel projects (slice 0.6), the 13-step walkthrough on the live URL, the video (6.3), making the repo public |
+| 7 Dashboard redesign | Slices 7.1 to 7.4 done locally. Checked by screenshot for every role at 1440px, and the Admiral pages at 390px and in dark. The gate on the live URL waits for the push |
 
 ## Open questions
 
@@ -181,6 +186,24 @@ Reference material (data model, status machines, money, permissions) is in `plan
 - The live URL and the video link are still to be added to `README.md` and to this file.
 
 ## Changelog
+
+### 2026-11-22 · Phase 7, dashboard redesign
+
+- New phase 7 (`phases/phase-7-redesign.md`) and decisions D62 to D64. The owner asked for a dashboard layout: sidebar, overview pages, charts, the shadcn dashboard look.
+- Shell: `components/app-nav.ts` (pages per role, active page, breadcrumb), `AppSidebar`, `AppHeader`, `ThemeToggle`. `AppShell` composes them.
+- New pages `/manager`, `/captain`, `/customer`. `ROLE_HOME` points to them. `/admiral` has charts, stat cards with the change against the period before, the pipeline as a bar list, and the two tables behind tabs.
+- New read functions: `getProfitSeries`, `getPlanetSpendSeries` (reports), `getMyOrderSummary` (orders). New pure file `reports/series.ts`. No schema change, no new Server Action. The order and trip actions also revalidate the overview pages.
+- Shared: `StatCard`, `Delta`, `MoneyTrendChart`, `MoneyBarChart`, `StatusBadge` with a dot. All 11 tables use the shadcn `Table`. Filters use `NativeSelect`.
+- Fixed: the "Next" link of `Pagination` had no border.
+- New dependency: `recharts` (asked and approved). 46 new tests, 1104 in total.
+- Live URL: `https://terra-ops-gold.vercel.app`. Sign-in there fails with `INVALID_ORIGIN` until `BETTER_AUTH_URL` on Vercel is set to that URL.
+
+### 2026-11-22 · Slice 0.6, Neon database
+
+- Neon project linked with `neon init` and `neon deploy` (D61). New files: `neon.ts`. `.gitignore` has `.neon`. New dependencies: `@neon/config`, `@neon/env`.
+- Migrated and seeded Neon by command (D58). Checked: 13 tables, 10 triggers, the seed rows.
+- Proof on a production build that reads Neon: `npm run build` passes, `npm run smoke` passes all checks, a sign-up through the app wrote the user and session rows in Neon. Neon was reseeded after the check.
+- No app code change. Still open: the Vercel project and the live URL.
 
 ### 2026-11-22 · Phase 6, ship (repo side)
 

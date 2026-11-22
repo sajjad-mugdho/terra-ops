@@ -8,6 +8,7 @@ import type { OrderDetail } from "../service";
 import { customerLabel, orderTone } from "../status";
 import { OrderTimeline, type ShownEvent } from "./order-timeline";
 import { ProgressSteps } from "./progress-steps";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Shown = Omit<OrderDetail, "timeline"> & { timeline: ShownEvent[]; customerName?: string };
 
@@ -81,28 +82,28 @@ export function OrderDetailView({ order }: { order: Shown }) {
               <CardTitle>Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <table className="w-full text-sm">
-                <thead className="text-left text-muted-foreground">
-                  <tr className="border-b">
-                    <th className="py-2 font-normal">Product</th>
-                    <th className="py-2 text-right font-normal">Units</th>
-                    <th className="py-2 text-right font-normal">Price</th>
-                    <th className="py-2 text-right font-normal">Delivery</th>
-                    <th className="py-2 text-right font-normal">Line total</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Units</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-right">Delivery</TableHead>
+                    <TableHead className="text-right">Line total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {order.items.map((item) => (
-                    <tr key={item.productName} className="border-b tabular-nums">
-                      <td className="py-2">{item.productName}</td>
-                      <td className="py-2 text-right">{item.units}</td>
-                      <td className="py-2 text-right">{formatMoney(item.unitPriceCents)}</td>
-                      <td className="py-2 text-right">{formatMoney(item.unitDeliveryChargeCents)}</td>
-                      <td className="py-2 text-right">{formatMoney(item.lineTotalCents)}</td>
-                    </tr>
+                    <TableRow key={item.productName} className="tabular-nums">
+                      <TableCell>{item.productName}</TableCell>
+                      <TableCell className="text-right">{item.units}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.unitPriceCents)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.unitDeliveryChargeCents)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.lineTotalCents)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
               <dl className="mt-3 ml-auto flex max-w-xs flex-col gap-1.5 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Product amount</dt>

@@ -3,9 +3,9 @@ const base = (process.argv[2] ?? process.env.SMOKE_URL ?? "http://localhost:3000
 const PASSWORD = "terra-demo-2026";
 const ROLES = [
   { email: "admiral@terra.demo", home: "/admiral" },
-  { email: "manager.mars@terra.demo", home: "/manager/queue" },
-  { email: "captain1@terra.demo", home: "/captain/trip" },
-  { email: "customer1@terra.demo", home: "/customer/orders" },
+  { email: "manager.mars@terra.demo", home: "/manager" },
+  { email: "captain1@terra.demo", home: "/captain" },
+  { email: "customer1@terra.demo", home: "/customer" },
 ];
 
 let failed = 0;
@@ -72,7 +72,7 @@ async function main() {
   const signUp = await get("/sign-up");
   check("sign-up page loads", signUp.status === 200, `status ${signUp.status}`);
 
-  for (const path of ["/", "/admiral", "/manager/queue", "/captain/trip", "/customer/orders"]) {
+  for (const path of ["/", "/admiral", "/manager", "/captain", "/customer"]) {
     const response = await get(path);
     check(`visitor on ${path} goes to /login`, redirectPath(response) === "/login", `status ${response.status}`);
   }
@@ -91,9 +91,9 @@ async function main() {
   }
 
   const customer = cookies["customer1@terra.demo"];
-  for (const path of ["/admiral", "/manager/queue", "/captain/trip"]) {
+  for (const path of ["/admiral", "/manager", "/captain"]) {
     const response = await get(path, customer);
-    check(`customer on ${path} is sent home`, redirectPath(response) === "/customer/orders", `status ${response.status}, location ${redirectPath(response)}`);
+    check(`customer on ${path} is sent home`, redirectPath(response) === "/customer", `status ${response.status}, location ${redirectPath(response)}`);
   }
 
   const wrong = await signIn("admiral@terra.demo", "not-the-password");

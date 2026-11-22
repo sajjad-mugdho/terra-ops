@@ -91,6 +91,9 @@ export type AdmiralOrderDetail = Omit<PlanetOrderDetail, "items" | "timeline"> &
   profitCents: number;
 };
 
+// A customer's own orders in numbers. totalPaidCents leaves out refunded orders.
+export type OrderSummary = { active: number; delivered: number; totalPaidCents: number };
+
 export type QueueOrder = {
   id: string;
   number: number;
@@ -344,6 +347,23 @@ export async function listMyOrders(input: OrderListInput = {}): Promise<Paged<Or
     input.page,
   );
   return { ...paged, rows: paged.rows.map((row) => row.order) };
+}
+
+export async function getMyOrderSummary(): Promise<OrderSummary> {
+  const customer = await requireRole("customer");
+  const [row] = await db
+    .select({
+      active: sql<number>`(count(*) filter (where ${orders.status} not in ('DELIVERED', 'REJECTED')))::int`,
+      delivered: sql<number>`(count(*) filter (where ${orders.status} = 'DELIVERED'))::int`,
+      totalPaidCents:
+        sql<number>`coalesce(sum(${paid.totalCents}) filter (where ${orders.paymentStatus} = 'PAID'), 0)`.mapWith(
+          Number,
+        ),
+    })
+    .from(orders)
+    .innerJoin(paid, eq(paid.orderId, orders.id))
+    .where(eq(orders.customerId, customer.id));
+  return row;
 }
 
 export async function getMyOrder(id: string): Promise<OrderDetail> {

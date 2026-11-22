@@ -6,9 +6,9 @@ export type Role = (typeof ROLES)[number];
 
 export const ROLE_HOME: Record<Role, Route> = {
   admiral: "/admiral",
-  manager: "/manager/queue",
-  captain: "/captain/trip",
-  customer: "/customer/orders",
+  manager: "/manager",
+  captain: "/captain",
+  customer: "/customer",
 };
 
 export const ROLE_LABEL: Record<Role, string> = {

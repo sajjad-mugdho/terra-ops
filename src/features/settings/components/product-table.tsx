@@ -3,41 +3,42 @@ import { StatusBadge } from "@/components/status-badge";
 import { updateProductAction } from "../actions";
 import type { ProductForAdmiral } from "../service";
 import { EditMoneyDialog } from "./edit-money-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export function ProductTable({ products }: { products: ProductForAdmiral[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-normal">Product</th>
-            <th className="px-3 py-2 text-right font-normal">Price</th>
-            <th className="px-3 py-2 text-right font-normal">Making cost</th>
-            <th className="px-3 py-2 text-right font-normal">Margin per unit</th>
-            <th className="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>Product</TableHead>
+            <TableHead className="text-right">Price</TableHead>
+            <TableHead className="text-right">Making cost</TableHead>
+            <TableHead className="text-right">Margin per unit</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {products.map((product) => (
-            <tr key={product.id} className="border-t">
-              <td className="px-3 py-2 font-medium">
+            <TableRow key={product.id}>
+              <TableCell className="font-medium">
                 <span className="flex flex-wrap items-center gap-2">
                   {product.name}
                   {product.sellsAtLoss && (
                     <StatusBadge label="This product sells at a loss" tone="danger" />
                   )}
                 </span>
-              </td>
-              <td className="px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={product.priceCents} />
-              </td>
-              <td className="px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={product.makingCostCents} />
-              </td>
-              <td className="px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={product.marginCents} />
-              </td>
-              <td className="px-3 py-2">
+              </TableCell>
+              <TableCell>
                 <EditMoneyDialog
                   id={product.id}
                   title={`Edit ${product.name}`}
@@ -57,11 +58,11 @@ export function ProductTable({ products }: { products: ProductForAdmiral[] }) {
                     },
                   ]}
                 />
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

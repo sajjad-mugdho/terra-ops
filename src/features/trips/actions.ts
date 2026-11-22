@@ -20,9 +20,12 @@ const fields = (formData: FormData) => Object.fromEntries(formData);
 
 // Every trip step shows on the captain's page and on the tracking pages of its orders.
 function revalidateTripPages() {
+  revalidatePath("/captain");
   revalidatePath("/captain/trip");
+  revalidatePath("/customer");
   revalidatePath("/customer/orders");
   revalidatePath("/customer/orders/[id]", "page");
+  revalidatePath("/manager");
   revalidatePath("/manager/orders");
   revalidatePath("/manager/orders/[id]", "page");
 }

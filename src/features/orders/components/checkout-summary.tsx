@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { type Cart, cartQuery } from "../cart";
 import { lineTotalCents, orderTotals } from "../pricing";
 import { PlaceOrderForm } from "./place-order-form";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Props = {
   cart: Cart;
@@ -42,28 +43,28 @@ export function CheckoutSummary({ cart, destination, products, idempotencyKey }:
             </p>
             <p className="text-muted-foreground">About {planet.daysFromEarth} days after lift-off</p>
           </div>
-          <table className="w-full text-sm">
-            <thead className="text-left text-muted-foreground">
-              <tr className="border-b">
-                <th className="py-2 font-normal">Product</th>
-                <th className="py-2 text-right font-normal">Units</th>
-                <th className="py-2 text-right font-normal">Price</th>
-                <th className="py-2 text-right font-normal">Delivery</th>
-                <th className="py-2 text-right font-normal">Line total</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead className="text-right">Units</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Delivery</TableHead>
+                <TableHead className="text-right">Line total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {lines.map((line) => (
-                <tr key={line.productId} className="border-b tabular-nums">
-                  <td className="py-2">{line.name}</td>
-                  <td className="py-2 text-right">{line.units}</td>
-                  <td className="py-2 text-right">{formatMoney(line.unitPriceCents)}</td>
-                  <td className="py-2 text-right">{formatMoney(line.unitDeliveryChargeCents)}</td>
-                  <td className="py-2 text-right">{formatMoney(lineTotalCents(line))}</td>
-                </tr>
+                <TableRow key={line.productId} className="tabular-nums">
+                  <TableCell>{line.name}</TableCell>
+                  <TableCell className="text-right">{line.units}</TableCell>
+                  <TableCell className="text-right">{formatMoney(line.unitPriceCents)}</TableCell>
+                  <TableCell className="text-right">{formatMoney(line.unitDeliveryChargeCents)}</TableCell>
+                  <TableCell className="text-right">{formatMoney(lineTotalCents(line))}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           <Button
             variant="outline"
             className="self-start"

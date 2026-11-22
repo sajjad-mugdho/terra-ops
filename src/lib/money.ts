@@ -17,3 +17,15 @@ export function parseDollarsToCents(text: string): number | null {
 export function centsToDollarText(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 }
+
+const compact = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+// For chart axes only: 133900 → "$1.3K". Exact amounts use formatMoney.
+export function formatMoneyCompact(cents: number): string {
+  return compact.format(cents / 100);
+}

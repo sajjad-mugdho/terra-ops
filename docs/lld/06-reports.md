@@ -16,7 +16,8 @@ Answers the money questions for each role. Read-only. It owns no tables and has 
 |---|---|
 | `features/reports/range.ts` | Pure: parse and validate a date range |
 | `features/reports/ranking.ts` | Pure: profit descending, ties by name. Used by the summary and the table |
-| `features/reports/service.ts` | 8 functions. 7 built in Phase 2, `getOverdueCount` in slice 3.2 |
+| `features/reports/service.ts` | 10 functions. 7 built in Phase 2, `getOverdueCount` in slice 3.2, `getProfitSeries` and `getPlanetSpendSeries` in Phase 7 |
+| `features/reports/series.ts` | Pure: `seriesUnit`, `previousPeriod`, `percentChange`, `bucketLabel` (D64) |
 | `features/reports/components/` | `TotalsCards`, `PlanetProfitSummary`, `PlanetProductTable`, `PipelineList`, `PurchasesTable`, `EarningsSummary`, `OverdueCard` |
 | `app/(app)/admiral`, `manager/report`, `captain/trips` | Pages |
 
@@ -60,6 +61,8 @@ None. Filters are URL parameters (`from`, `to`).
 | `getPlanetProductTable(range)` | Admiral | from, to | `[{ planet, rows: [{ product, units, revenueCents, makingCostCents, profitCents }], subtotal }]`. Every planet, zeros included, same planet order as the summary |
 | `getPipeline()` | Admiral | — | `[{ status, count, oldestWaitingSince }]` for all 9 statuses. `oldestWaitingSince` is set only for PLACED and ACCEPTED |
 | `getOverdueCount()` | Admiral | — | `{ count }` of orders waiting over 3 days |
+| `getProfitSeries(period)` | Admiral | start, end | `{ unit, points: { date, revenueCents, profitCents }[] }`. One point per day, month or year, empty ones included. The points add up to the totals |
+| `getPlanetSpendSeries(period)` | Manager | start, end | `{ unit, points: { date, totalPaidCents }[] }` for the own planet. No cost, no profit |
 | `getPlanetPurchases(range)` | Manager | from, to | `{ rows: [{ product, units, productAmountCents, deliveryChargesCents, totalPaidCents }], total }` |
 | `getPlanetInProgress()` | Manager | — | Same shape as `getPlanetPurchases`, for orders ACCEPTED to AT_SECTOR (D31) |
 | `getMyEarnings()` | Captain | — | `{ trips, units, earningsCents, fuelCents, profitCents }` over completed trips |

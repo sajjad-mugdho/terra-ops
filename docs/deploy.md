@@ -104,7 +104,7 @@ npm run smoke -- https://<live-url>      # live
 |---|---|
 | `/api/auth/ok` answers | The app is up and the auth handler is mounted |
 | `/login` and `/sign-up` load, demo accounts are listed | Pages render |
-| A visitor on `/`, `/admiral`, `/manager/queue`, `/captain/trip`, `/customer/orders` goes to `/login` | The proxy guard works |
+| A visitor on `/`, `/admiral`, `/manager`, `/captain`, `/customer` goes to `/login` | The proxy guard works |
 | One account per role signs in | The database is reachable, migrated and seeded. `BETTER_AUTH_URL` matches the URL |
 | Each role lands on its own home and can open it | Role routing and the first service read of each role |
 | A customer on a staff URL is sent home | Role guards |

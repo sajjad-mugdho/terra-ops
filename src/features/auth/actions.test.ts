@@ -22,9 +22,9 @@ describe("role homes", () => {
   it("gives every role its own home", () => {
     expect(ROLE_HOME).toEqual({
       admiral: "/admiral",
-      manager: "/manager/queue",
-      captain: "/captain/trip",
-      customer: "/customer/orders",
+      manager: "/manager",
+      captain: "/captain",
+      customer: "/customer",
     });
     expect(new Set(Object.values(ROLE_HOME)).size).toBe(ROLES.length);
   });
@@ -52,7 +52,7 @@ describe("demoLoginAction", () => {
 describe("signInAction", () => {
   it("accepts an email typed with capitals and spaces and lands on the role home", async () => {
     const fields = { email: "  Manager.Mars@Terra.Demo ", password: DEMO_PASSWORD };
-    expect(await redirectTarget(() => signInAction(null, form(fields)))).toBe("/manager/queue");
+    expect(await redirectTarget(() => signInAction(null, form(fields)))).toBe("/manager");
   });
 
   it.each([
@@ -78,7 +78,7 @@ describe("signUpAction", () => {
 
   it("creates a customer and lands on the customer home", async () => {
     const data = form({ ...fields, role: "admiral", planetId: "x" });
-    expect(await redirectTarget(() => signUpAction(null, data))).toBe("/customer/orders");
+    expect(await redirectTarget(() => signUpAction(null, data))).toBe("/customer");
 
     const [row] = await db.select().from(user).where(eq(user.email, "nova@example.com"));
     expect(row).toMatchObject({ name: "Nova Reyes", role: "customer" });

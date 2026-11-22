@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { SEARCH_MAX } from "@/lib/search";
 
 type Select = {
@@ -54,19 +55,14 @@ export function ListFilters({ path, search, selects = [] }: Props) {
       {selects.map((select) => (
         <div key={select.name} className="flex flex-col gap-1.5">
           <Label htmlFor={select.name}>{select.label}</Label>
-          <select
-            id={select.name}
-            name={select.name}
-            defaultValue={select.value}
-            className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="">{select.emptyLabel ?? "All"}</option>
+          <NativeSelect id={select.name} name={select.name} defaultValue={select.value}>
+            <NativeSelectOption value="">{select.emptyLabel ?? "All"}</NativeSelectOption>
             {select.options.map((option) => (
-              <option key={option.value} value={option.value}>
+              <NativeSelectOption key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       ))}
       <Button type="submit">{search ? "Search" : "Filter"}</Button>

@@ -8,6 +8,7 @@ import { ORDER_STATUSES, type OrderStatus } from "@/features/orders/status";
 import { waitingSince } from "@/features/orders/waiting";
 import { tripEarned } from "@/features/trips/service";
 import { byProfitThenName } from "./ranking";
+import { type SeriesUnit, seriesUnit } from "./series";
 
 type Period = { start: Date; end: Date };
 
@@ -46,6 +47,13 @@ export type PurchaseRow = {
 
 export type Purchases = { rows: (PurchaseRow & { product: string })[]; total: PurchaseRow };
 
+export type ProfitSeries = {
+  unit: SeriesUnit;
+  points: { date: string; revenueCents: number; profitCents: number }[];
+};
+
+export type SpendSeries = { unit: SeriesUnit; points: { date: string; totalPaidCents: number }[] };
+
 export type Earnings = {
   trips: number;
   units: number;
@@ -81,6 +89,7 @@ const soldLines = (where: SQL | undefined) =>
     .select({
       planetId: orders.planetId,
       productId: orderItems.productId,
+      deliveredAt: orders.deliveredAt,
       units: orderItems.units,
       revenueCents: sql<number>`${orderItems.units}::bigint * ${orderItems.unitPriceCents}`.as(
         "sold_revenue",
@@ -200,10 +209,11 @@ export async function getOverdueCount(): Promise<{ count: number }> {
 }
 
 // No making cost is selected here, so a manager report has nothing to leak.
-async function purchases(where: SQL | undefined): Promise<Purchases> {
-  const bought = db
+const boughtLines = (where: SQL | undefined) =>
+  db
     .select({
       productId: orderItems.productId,
+      deliveredAt: orders.deliveredAt,
       units: orderItems.units,
       productAmountCents: sql<number>`${orderItems.units}::bigint * ${orderItems.unitPriceCents}`.as(
         "bought_amount",
@@ -217,6 +227,9 @@ async function purchases(where: SQL | undefined): Promise<Purchases> {
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
     .where(where)
     .as("bought");
+
+async function purchases(where: SQL | undefined): Promise<Purchases> {
+  const bought = boughtLines(where);
 
   const rows = await db
     .select({
@@ -256,6 +269,60 @@ export async function getPlanetInProgress(): Promise<Purchases> {
   return purchases(
     and(eq(orders.planetId, manager.planetId), inArray(orders.status, IN_PROGRESS)),
   );
+}
+
+const dayText = (date: Date) => date.toISOString().slice(0, 10);
+
+// One row per day, month or year of the period in UTC, empty ones included.
+function buckets(period: Period, unit: SeriesUnit) {
+  // unit is one of three literals, never user input.
+  const step = sql.raw(`'${unit}'`);
+  const first = dayText(period.start);
+  const last = dayText(new Date(period.end.getTime() - 1));
+  return {
+    from: sql`generate_series(date_trunc(${step}, ${first}::timestamp), ${last}::timestamp, ${sql.raw(`interval '1 ${unit}'`)}) as bucket(start)`,
+    start: sql`bucket.start`,
+    date: sql<string>`to_char(bucket.start, 'YYYY-MM-DD')`,
+    holds: (deliveredAt: SQL) =>
+      sql`date_trunc(${step}, ${deliveredAt} at time zone 'UTC') = bucket.start`,
+  };
+}
+
+// Revenue and profit over time, for the dashboard chart. Same counting rule as the totals.
+export async function getProfitSeries(period: Period): Promise<ProfitSeries> {
+  await requireRole("admiral");
+  const unit = seriesUnit(period);
+  const bucket = buckets(period, unit);
+  const sold = soldLines(deliveredIn(period));
+  const points = await db
+    .select({
+      date: bucket.date,
+      revenueCents: total(sql`${sold.revenueCents}`),
+      profitCents: total(sql`${sold.revenueCents} - ${sold.makingCostCents}`),
+    })
+    .from(bucket.from)
+    .leftJoin(sold, bucket.holds(sql`${sold.deliveredAt}`))
+    .groupBy(bucket.start)
+    .orderBy(bucket.start);
+  return { unit, points };
+}
+
+// What the manager's planet paid over time. No making cost and no profit.
+export async function getPlanetSpendSeries(period: Period): Promise<SpendSeries> {
+  const manager = await requireManagerPlanet();
+  const unit = seriesUnit(period);
+  const bucket = buckets(period, unit);
+  const bought = boughtLines(and(eq(orders.planetId, manager.planetId), deliveredIn(period)));
+  const points = await db
+    .select({
+      date: bucket.date,
+      totalPaidCents: total(sql`${bought.productAmountCents} + ${bought.deliveryChargesCents}`),
+    })
+    .from(bucket.from)
+    .leftJoin(bought, bucket.holds(sql`${bought.deliveredAt}`))
+    .groupBy(bucket.start)
+    .orderBy(bucket.start);
+  return { unit, points };
 }
 
 // A trip counts when it is COMPLETED. Open and cancelled trips never do.

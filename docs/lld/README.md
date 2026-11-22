@@ -93,6 +93,7 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `listPlanetsForAdmiral` | settings | Admiral | Planets with charges and break-even units |
 | `listSettingsChanges` | settings | Admiral | Paged change history |
 | `listMyOrders` | orders | Customer | Own orders, paged |
+| `getMyOrderSummary` | orders | Customer | Active and delivered counts, total paid without refunds |
 | `getMyOrder` | orders | Customer | One own order with timeline and ETA |
 | `listQueue` | orders | Manager | PLACED orders of own planet |
 | `listPlanetOrders` | orders | Manager | All orders of own planet, paged |
@@ -112,30 +113,35 @@ Every action also returns `UNAUTHORIZED` without a session and `FORBIDDEN` for a
 | `getPlanetProductTable` | reports | Admiral | Planet × product rows |
 | `getPipeline` | reports | Admiral | Order count per status, oldest waiting order for PLACED and ACCEPTED |
 | `getOverdueCount` | reports | Admiral | Orders waiting too long |
+| `getProfitSeries` | reports | Admiral | Revenue and profit per day, month or year |
 | `getPlanetPurchases` | reports | Manager | Per product purchases |
 | `getPlanetInProgress` | reports | Manager | Per product purchases on the way |
+| `getPlanetSpendSeries` | reports | Manager | Total paid per day, month or year. No cost, no profit |
 | `getMyEarnings` | reports | Captain | Totals over completed trips |
 
 ---
 
-## D. Pages (all 21)
+## D. Pages (all 24)
 
 | URL | Role | Reads | Actions on the page |
 |---|---|---|---|
 | `/login` | Public | demo user list | 1, 3 |
 | `/sign-up` | Public | — | 2 |
 | `/` | Any | `getCurrentUser` | — |
+| `/customer` | Customer | `getMyOrderSummary`, `listMyOrders` | — |
 | `/customer/orders` | Customer | `listMyOrders` | — |
 | `/customer/orders/new` | Customer | `listLocationTree`, `listProducts` | 7 |
 | `/customer/orders/[id]` | Customer | `getMyOrder` | — |
+| `/manager` | Manager | `listQueue`, `getPlanetPurchases`, `getPlanetInProgress`, `getPlanetSpendSeries` | — |
 | `/manager/queue` | Manager | `listQueue` | 8, 9 |
 | `/manager/orders` | Manager | `listPlanetOrders` | — |
 | `/manager/orders/[id]` | Manager | `getPlanetOrder` | — |
 | `/manager/report` | Manager | `getPlanetPurchases`, `getPlanetInProgress` | — |
+| `/captain` | Captain | `getMyEarnings`, `getMyOpenTrip`, `listMyTrips` | — |
 | `/captain/trip` | Captain | `getMyOpenTrip`, `listPlanetsForTrip`, `listAvailableOrders` | 10 to 18 |
 | `/captain/trips` | Captain | `listMyTrips`, `getMyEarnings`, `getMyOpenTrip` | — |
 | `/captain/trips/[id]` | Captain | `getMyTrip`, `getMyTripRow` | — |
-| `/admiral` | Admiral | `getCompanyTotals`, `getPlanetProfitSummary`, `getPlanetProductTable`, `getPipeline`, `getOverdueCount` | — |
+| `/admiral` | Admiral | `getCompanyTotals` (the range and the one before), `getProfitSeries`, `getPlanetProfitSummary`, `getPlanetProductTable`, `getPipeline`, `getOverdueCount` | — |
 | `/admiral/orders` | Admiral | `listAllOrders`, `listPlanetsForAdmiral` | — |
 | `/admiral/orders/[id]` | Admiral | `getAnyOrder` | — |
 | `/admiral/trips` | Admiral | `listAllTrips`, `listPlanetsForAdmiral` | — |

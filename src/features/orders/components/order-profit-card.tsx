@@ -1,6 +1,7 @@
 import { Money } from "@/components/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdmiralOrderDetail } from "../service";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Admiral only: what the company made on this order, from the frozen lines.
 export function OrderProfitCard({ order }: { order: AdmiralOrderDetail }) {
@@ -10,34 +11,34 @@ export function OrderProfitCard({ order }: { order: AdmiralOrderDetail }) {
         <CardTitle>Company profit</CardTitle>
       </CardHeader>
       <CardContent>
-        <table className="w-full text-sm">
-          <thead className="text-left text-muted-foreground">
-            <tr className="border-b">
-              <th className="py-2 font-normal">Product</th>
-              <th className="py-2 text-right font-normal">Units</th>
-              <th className="py-2 text-right font-normal">Price</th>
-              <th className="py-2 text-right font-normal">Making cost</th>
-              <th className="py-2 text-right font-normal">Profit</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product</TableHead>
+              <TableHead className="text-right">Units</TableHead>
+              <TableHead className="text-right">Price</TableHead>
+              <TableHead className="text-right">Making cost</TableHead>
+              <TableHead className="text-right">Profit</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {order.items.map((item) => (
-              <tr key={item.productName} className="border-b">
-                <td className="py-2">{item.productName}</td>
-                <td className="py-2 text-right tabular-nums">{item.units}</td>
-                <td className="py-2 text-right">
+              <TableRow key={item.productName}>
+                <TableCell>{item.productName}</TableCell>
+                <TableCell className="text-right tabular-nums">{item.units}</TableCell>
+                <TableCell className="text-right">
                   <Money cents={item.unitPriceCents} />
-                </td>
-                <td className="py-2 text-right">
+                </TableCell>
+                <TableCell className="text-right">
                   <Money cents={item.unitMakingCostCents} />
-                </td>
-                <td className="py-2 text-right">
+                </TableCell>
+                <TableCell className="text-right">
                   <Money cents={item.units * (item.unitPriceCents - item.unitMakingCostCents)} />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
         <dl className="mt-3 ml-auto flex max-w-xs flex-col gap-1.5 text-sm">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Revenue (product amount)</dt>

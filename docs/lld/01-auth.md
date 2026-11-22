@@ -35,9 +35,9 @@ Role homes:
 
 | Role | Home |
 |---|---|
-| Customer | `/customer/orders` |
-| Manager | `/manager/queue` |
-| Captain | `/captain/trip` |
+| Customer | `/customer` |
+| Manager | `/manager` |
+| Captain | `/captain` |
 | Admiral | `/admiral` |
 
 ## 4. Server Actions
@@ -75,9 +75,9 @@ flowchart TD
     DL --> BA
     SUA --> BA
     BA --> H{Role?}
-    H -- customer --> C["/customer/orders"]
-    H -- manager --> M["/manager/queue"]
-    H -- captain --> K["/captain/trip"]
+    H -- customer --> C["/customer"]
+    H -- manager --> M["/manager"]
+    H -- captain --> K["/captain"]
     H -- admiral --> A["/admiral"]
 ```
 

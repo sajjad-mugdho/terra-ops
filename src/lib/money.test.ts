@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centsToDollarText, formatMoney, parseDollarsToCents } from "./money";
+import { centsToDollarText, formatMoney, formatMoneyCompact, parseDollarsToCents } from "./money";
 
 describe("formatMoney", () => {
   it.each([
@@ -44,5 +44,17 @@ describe("centsToDollarText", () => {
   ])("%i -> %s", (cents, text) => {
     expect(centsToDollarText(cents)).toBe(text);
     expect(parseDollarsToCents(text)).toBe(cents);
+  });
+});
+
+describe("formatMoneyCompact", () => {
+  it.each([
+    [0, "$0"],
+    [5000, "$50"],
+    [133900, "$1.3K"],
+    [250000000, "$2.5M"],
+    [-5000, "-$50"],
+  ])("%i -> %s", (cents, text) => {
+    expect(formatMoneyCompact(cents)).toBe(text);
   });
 });

@@ -19,6 +19,7 @@ No slice builds a layer "for later". A table, function or component is added in 
 | 4 Usability | [phase-4-usability.md](phase-4-usability.md) | 4.1 Auto-refresh · 4.2 Pagination · 4.3 Search and filters | Sun afternoon | ~2.5h |
 | 5 History | [phase-5-history.md](phase-5-history.md) | 5.1 Settings history page | Sun afternoon | ~1h |
 | 6 Ship | [phase-6-ship.md](phase-6-ship.md) | 6.1 Final reseed and walkthrough · 6.2 README · 6.3 Video · 6.4 Submission check | Sun evening | ~4h |
+| 7 Dashboard redesign | [phase-7-redesign.md](phase-7-redesign.md) | 7.1 Shell: sidebar, header, theme · 7.2 Shared pieces · 7.3 Admiral dashboard with charts · 7.4 Overview pages | Sun evening | ~5h |
 
 Slices run in the listed order. Each depends only on slices above it.
 

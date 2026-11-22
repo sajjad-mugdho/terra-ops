@@ -25,13 +25,16 @@ What the reviewer should remember: money and status are always correct, and it i
 | `/login` | Public | Email + password, plus "Log in as" demo buttons |
 | `/sign-up` | Public | Customer sign-up |
 | `/` | Any | Redirects to the role home, or `/login` |
+| `/customer` | Customer | Overview: counts, total paid, the newest moving order, recent orders (D63) |
 | `/customer/orders` | Customer | Own orders, status filter, search, pagination |
 | `/customer/orders/new` | Customer | Step 1 build order, step 2 checkout |
 | `/customer/orders/[id]` | Customer | Tracking: timeline, items, amount, ETA. Auto-refresh |
+| `/manager` | Manager | Overview: queue size, on the way, delivered, paid, two charts (D63) |
 | `/manager/queue` | Manager | PLACED orders of own planet. Accept / reject. Auto-refresh |
 | `/manager/orders` | Manager | All orders of own planet, status filter, search |
 | `/manager/orders/[id]` | Manager | Order detail and timeline. No cost or profit |
 | `/manager/report` | Manager | Purchases report, date range |
+| `/captain` | Captain | Overview: earnings numbers, earnings and fuel by trip, the current trip (D63) |
 | `/captain/trip` | Captain | Current trip: create, build, mark steps. Available orders auto-refresh |
 | `/captain/trips` | Captain | Trip history with earnings and totals |
 | `/captain/trips/[id]` | Captain | One past trip |
@@ -49,7 +52,7 @@ Route rules:
 - Each role segment layout calls `requireRole`. Wrong role → redirect to the user's own home.
 - A record outside the user's scope → `notFound()`. Same response as a record that does not exist.
 
-Role homes: customer `/customer/orders`, manager `/manager/queue`, captain `/captain/trip`, admiral `/admiral`.
+Role homes: customer `/customer`, manager `/manager`, captain `/captain`, admiral `/admiral` (D63).
 
 ---
 

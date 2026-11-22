@@ -1,21 +1,20 @@
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const TONES = {
-  neutral: "bg-muted text-foreground",
-  info: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
-  success: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
-  danger: "bg-destructive/10 text-destructive",
+const DOTS = {
+  neutral: "bg-muted-foreground/50",
+  info: "bg-info",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-destructive",
 };
 
-export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: keyof typeof TONES }) {
+// The dot carries the tone, the label carries the meaning.
+export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: keyof typeof DOTS }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
-        TONES[tone],
-      )}
-    >
+    <Badge variant="outline" className="gap-1.5 font-normal">
+      <span className={cn("size-1.5 shrink-0 rounded-full", DOTS[tone])} aria-hidden />
       {label}
-    </span>
+    </Badge>
   );
 }

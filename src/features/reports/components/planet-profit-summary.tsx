@@ -1,38 +1,39 @@
 import { Money } from "@/components/money";
 import type { PlanetProfit } from "../service";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // The first answer on the dashboard: which planets are profitable (D32).
 export function PlanetProfitSummary({ rows }: { rows: PlanetProfit[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-normal">Planet</th>
-            <th className="px-3 py-2 text-right font-normal">Units</th>
-            <th className="px-3 py-2 text-right font-normal">Revenue</th>
-            <th className="px-3 py-2 text-right font-normal">Making cost</th>
-            <th className="px-3 py-2 text-right font-normal">Profit</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>Planet</TableHead>
+            <TableHead className="text-right">Units</TableHead>
+            <TableHead className="text-right">Revenue</TableHead>
+            <TableHead className="text-right">Making cost</TableHead>
+            <TableHead className="text-right">Profit</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr key={row.planetId} className="border-t">
-              <td className="px-3 py-1.5 font-medium">{row.planet}</td>
-              <td className="px-3 py-1.5 text-right tabular-nums">{row.units}</td>
-              <td className="px-3 py-1.5 text-right">
+            <TableRow key={row.planetId}>
+              <TableCell className="font-medium">{row.planet}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.units}</TableCell>
+              <TableCell className="text-right">
                 <Money cents={row.revenueCents} />
-              </td>
-              <td className="px-3 py-1.5 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={row.makingCostCents} />
-              </td>
-              <td className="px-3 py-1.5 text-right font-medium">
+              </TableCell>
+              <TableCell className="text-right font-medium">
                 <Money cents={row.profitCents} />
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

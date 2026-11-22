@@ -70,8 +70,15 @@ flowchart LR
 
 | Component | Type | Purpose |
 |---|---|---|
-| `AppShell` | Server | Header, role nav, user name, log out |
-| `StatusBadge` | Server | Colored label. The feature passes the text and the tone |
+| `AppShell` | Server | Composes the sidebar, the header and the page content (D62) |
+| `app-nav.ts` | Pure | Pages of each role in groups. `activeNav` (longest match) and `crumbsFor` |
+| `AppSidebar` | Client | Brand, grouped pages with icons, user, log out. Collapses to icons, a drawer on phones |
+| `AppHeader` | Client | Sidebar toggle, breadcrumb, theme toggle |
+| `ThemeToggle` | Client | Flips the `dark` class and writes the `theme` cookie that the root layout reads |
+| `StatCard`, `Delta` | Server | One headline number with an icon and a hint. `Delta`: change against the period before |
+| `MoneyTrendChart` | Client | Money over time on one axis. One series has a light fill, more have lines and a legend (D64) |
+| `MoneyBarChart` | Client | Ranked horizontal bars with the amount at the tip, or columns per category (D64) |
+| `StatusBadge` | Server | Outline badge with a colored dot. The feature passes the text and the tone |
 | `Money` | Server | Formats cents. Red with a minus when negative |
 | `DataTable` | Server | Table with an empty state |
 | `Pagination` | Server | The total count, and previous, next, "Page x of y" as links when there is more than one page |

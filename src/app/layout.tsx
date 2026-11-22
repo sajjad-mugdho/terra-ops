@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
+import { THEME_COOKIE } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,11 +20,12 @@ export const metadata: Metadata = {
   description: "Orders, trips and profit for every planet.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const dark = (await cookies()).get(THEME_COOKIE)?.value === "dark";
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={cn(geistSans.variable, geistMono.variable, "h-full antialiased", dark && "dark")}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

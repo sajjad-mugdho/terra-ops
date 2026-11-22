@@ -88,7 +88,7 @@ describe("trip actions", () => {
 
   it("refreshes the captain page and the tracking pages after every change", async () => {
     await startTrip();
-    for (const path of ["/captain/trip", "/customer/orders"]) {
+    for (const path of ["/captain", "/captain/trip", "/customer", "/customer/orders", "/manager"]) {
       expect(cache.revalidatePath).toHaveBeenCalledWith(path);
     }
     expect(cache.revalidatePath).toHaveBeenCalledWith("/customer/orders/[id]", "page");

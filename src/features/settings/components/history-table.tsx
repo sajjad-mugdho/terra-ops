@@ -2,42 +2,43 @@ import { Money } from "@/components/money";
 import { formatUtc } from "@/lib/dates";
 import { changeLabel, formatDifference } from "../history";
 import type { SettingsChange } from "../service";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export function HistoryTable({ rows }: { rows: SettingsChange[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-normal">Time</th>
-            <th className="px-3 py-2 font-normal">Changed by</th>
-            <th className="px-3 py-2 font-normal">What</th>
-            <th className="px-3 py-2 text-right font-normal">Old value</th>
-            <th className="px-3 py-2 text-right font-normal">New value</th>
-            <th className="px-3 py-2 text-right font-normal">Difference</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>Time</TableHead>
+            <TableHead>Changed by</TableHead>
+            <TableHead>What</TableHead>
+            <TableHead className="text-right">Old value</TableHead>
+            <TableHead className="text-right">New value</TableHead>
+            <TableHead className="text-right">Difference</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr key={row.id} className="border-t">
-              <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+            <TableRow key={row.id}>
+              <TableCell className="text-muted-foreground">
                 <time dateTime={row.changedAt.toISOString()}>{formatUtc(row.changedAt)}</time>
-              </td>
-              <td className="px-3 py-2">{row.actorName}</td>
-              <td className="px-3 py-2 font-medium">{changeLabel(row.entityName, row.field)}</td>
-              <td className="px-3 py-2 text-right text-muted-foreground">
+              </TableCell>
+              <TableCell>{row.actorName}</TableCell>
+              <TableCell className="font-medium">{changeLabel(row.entityName, row.field)}</TableCell>
+              <TableCell className="text-right text-muted-foreground">
                 <Money cents={row.oldValueCents} />
-              </td>
-              <td className="px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={row.newValueCents} />
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
                 {formatDifference(row.oldValueCents, row.newValueCents)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

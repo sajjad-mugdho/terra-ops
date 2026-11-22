@@ -14,7 +14,8 @@ type Props = {
   many: string;
 };
 
-const LINK = buttonVariants({ variant: "outline", size: "sm" });
+// cn settles the border classes of the base and the variant.
+const LINK = cn(buttonVariants({ variant: "outline", size: "sm" }));
 
 // A real link, so back, forward and "open in new tab" work. No href: the end of the list.
 function PageLink({ href, rel, children }: { href: string | null; rel: "prev" | "next"; children: string }) {

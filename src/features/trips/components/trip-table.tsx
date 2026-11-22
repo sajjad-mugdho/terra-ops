@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatUtc } from "@/lib/dates";
 import type { TripRow } from "../service";
 import { isOpenTrip, tripCode, tripLabel, tripTone } from "../status";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Row = TripRow & { captainName?: string };
 
@@ -13,63 +14,63 @@ export function TripTable({ rows, basePath }: Props) {
   const withCaptain = rows.some((row) => row.captainName !== undefined);
 
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-normal">Trip</th>
-            {withCaptain && <th className="px-3 py-2 font-normal">Captain</th>}
-            <th className="px-3 py-2 font-normal">Planet</th>
-            <th className="px-3 py-2 font-normal">Status</th>
-            <th className="px-3 py-2 text-right font-normal">Units</th>
-            <th className="px-3 py-2 text-right font-normal">Earnings</th>
-            <th className="px-3 py-2 text-right font-normal">Fuel</th>
-            <th className="px-3 py-2 text-right font-normal">Profit</th>
-            <th className="px-3 py-2 font-normal">Created</th>
-            <th className="px-3 py-2 font-normal">Completed</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>Trip</TableHead>
+            {withCaptain && <TableHead>Captain</TableHead>}
+            <TableHead>Planet</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Units</TableHead>
+            <TableHead className="text-right">Earnings</TableHead>
+            <TableHead className="text-right">Fuel</TableHead>
+            <TableHead className="text-right">Profit</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Completed</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => {
             const cancelled = row.status === "CANCELLED";
             const loss = row.profitCents < 0;
             return (
-              <tr key={row.id} className={loss ? "border-t bg-destructive/5" : "border-t"}>
-                <td className="px-3 py-2 font-medium">
+              <TableRow key={row.id} className={loss ? "bg-destructive/5" : undefined}>
+                <TableCell className="font-medium">
                   <Link href={`${basePath}/${row.id}`} className="underline-offset-4 hover:underline">
                     {tripCode(row.number)}
                   </Link>
-                </td>
-                {withCaptain && <td className="px-3 py-2">{row.captainName}</td>}
-                <td className="px-3 py-2">{row.planet}</td>
-                <td className="px-3 py-2">
+                </TableCell>
+                {withCaptain && <TableCell>{row.captainName}</TableCell>}
+                <TableCell>{row.planet}</TableCell>
+                <TableCell>
                   <span className="flex flex-wrap gap-1">
                     <StatusBadge label={tripLabel(row.status)} tone={tripTone(row.status)} />
                     {loss && <StatusBadge label={isOpenTrip(row.status) ? "Expected loss" : "Loss"} tone="danger" />}
                   </span>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{row.totalUnits}</td>
-                <td className="px-3 py-2 text-right">
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{row.totalUnits}</TableCell>
+                <TableCell className="text-right">
                   <Money cents={row.earningsCents} />
-                </td>
+                </TableCell>
                 {/* A cancelled trip never flew, so it has no fuel cost and no profit. */}
-                <td className="px-3 py-2 text-right">
+                <TableCell className="text-right">
                   {cancelled ? <Money cents={0} /> : <Money cents={row.fuelCostCents} />}
-                </td>
-                <td className="px-3 py-2 text-right font-medium">
+                </TableCell>
+                <TableCell className="text-right font-medium">
                   <Money cents={row.profitCents} />
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                </TableCell>
+                <TableCell className="text-muted-foreground">
                   {formatUtc(row.createdAt)}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                </TableCell>
+                <TableCell className="text-muted-foreground">
                   {row.completedAt ? formatUtc(row.completedAt) : "Not yet"}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

@@ -8,7 +8,7 @@ Built in one weekend with one goal: money and order status are always correct, a
 
 | | |
 |---|---|
-| Live URL | Not deployed yet. The Neon and Vercel projects belong to the owner. Steps: [docs/deploy.md](docs/deploy.md) |
+| Live URL | https://terra-ops-gold.vercel.app (Vercel + Neon). Steps: [docs/deploy.md](docs/deploy.md) |
 | Video walkthrough | Not recorded yet. It is recorded on the live URL |
 | Run it now | [Run locally](#9-run-locally-run-tests), about 3 minutes |
 
@@ -51,13 +51,15 @@ To type instead: every demo account has the password `terra-demo-2026`.
 | Role | Email | Starts on |
 |---|---|---|
 | Grand Admiral | `admiral@terra.demo` | `/admiral` |
-| Planet Manager | `manager.<planet>@terra.demo`, for example `manager.mars@terra.demo` | `/manager/queue` |
-| Captain | `captain1@terra.demo` to `captain4@terra.demo` | `/captain/trip` |
-| Customer | `customer1@terra.demo` to `customer4@terra.demo` | `/customer/orders` |
+| Planet Manager | `manager.<planet>@terra.demo`, for example `manager.mars@terra.demo` | `/manager` |
+| Captain | `captain1@terra.demo` to `captain4@terra.demo` | `/captain` |
+| Customer | `customer1@terra.demo` to `customer4@terra.demo` | `/customer` |
 
 Planets: mercury, venus, mars, jupiter, saturn, uranus, neptune. A new customer can also sign up at `/sign-up`.
 
 The seed holds 32 orders and 11 trips, so every one of the 9 order statuses and 6 trip statuses is on screen from the first login.
+
+Every role starts on a "Dashboard" with its headline numbers and charts. The pages below are in the sidebar. The sun and moon button in the header switches between light and dark.
 
 ### Customer (`customer1@terra.demo`)
 
@@ -82,16 +84,16 @@ The seed holds 32 orders and 11 trips, so every one of the 9 order statuses and 
 | `captain3@terra.demo` | LIFTED_OFF, Saturn | Land, deliver |
 | `captain1@terra.demo` | LANDED, Mars | Delivering stops until the trip completes |
 
-1. As `captain2`: "My trip" shows "Earnings − Fuel = Expected profit" and each available order as "+$N".
+1. As `captain2`: "Current trip" shows "Earnings − Fuel = Expected profit" and each available order as "+$N".
 2. A small trip shows "This trip will lose $X" above "Mark as loaded". Loading stays allowed.
 3. As `captain1`: deliver each stop. After the last one the trip is COMPLETED.
 4. "Trips and earnings": totals over completed trips and the trip history. A loss trip is red.
 
 ### Grand Admiral (`admiral@terra.demo`)
 
-1. Dashboard: totals, "Profit by planet", planet by product, the pipeline, and the "Waiting too long" card.
+1. "Dashboard": totals with the change against the period before, the "Revenue and profit" chart, "Profit by planet", the pipeline, the "Waiting too long" card, and both tables under "Breakdown".
 2. "Products": change the Water price. Checkout shows the new price at once. The dashboard numbers of past orders do not move.
-3. "History": the change is listed with old value, new value, who and when.
+3. "Change history": the change is listed with old value, new value, who and when.
 4. "Orders" and "Trips": read-only lists of everything, with making cost and profit on the order detail.
 
 ### Access checks to try
@@ -117,7 +119,7 @@ What I gave less time to on purpose: visual polish, staff management, real payme
 
 ## 4. Architecture
 
-Next.js 16.4 (App Router, Server Actions) · TypeScript strict · Tailwind CSS 4 · shadcn/ui · PostgreSQL 17 · Drizzle ORM · Better Auth · Zod 4 · Vitest · Vercel + Neon.
+Next.js 16.4 (App Router, Server Actions) · TypeScript strict · Tailwind CSS 4 · shadcn/ui · Recharts · PostgreSQL 17 · Drizzle ORM · Better Auth · Zod 4 · Vitest · Vercel + Neon.
 
 One deployable unit: a Next.js app and one Postgres database. No separate API, no queue, no cache.
 
@@ -328,6 +330,10 @@ Every decision from [docs/context.md](docs/context.md), in plain words. The numb
 - **D58** Migrations and the seed run by command from a developer machine, never in the Vercel build.
 - **D59** A wrong environment variable stops the build with the variable's name and never its value. On Vercel, an auth URL that points to localhost stops the build too.
 - **D60** A smoke test (`npm run smoke`) checks a running, seeded deployment. CI runs it against the production build.
+- **D61** The live database is a Neon project, linked with the Neon CLI. The Neon connection strings stay in a git-ignored file, away from the local `.env`.
+- **D62** One dashboard shell for every role: sidebar with grouped pages, breadcrumb, light and dark theme from a cookie.
+- **D63** Every role lands on an overview page with its headline numbers. The working pages keep their URLs.
+- **D64** Charts use Recharts through the shadcn chart component. Time series are built in SQL, so empty days are zero. Manager charts never hold cost or profit.
 
 ### Process
 

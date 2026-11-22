@@ -42,11 +42,14 @@ import {
   getPlanetProductTable,
   getPlanetProfitSummary,
   getPlanetPurchases,
+  getPlanetSpendSeries,
+  getProfitSeries,
 } from "./service";
 
 const DAY = 86_400_000;
 const around = () => ({ start: new Date(Date.now() - DAY), end: new Date(Date.now() + DAY) });
 const ZERO = { units: 0, revenueCents: 0, makingCostCents: 0, profitCents: 0 };
+const dayFromNow = (days: number) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
 const NOTHING = { units: 0, productAmountCents: 0, deliveryChargesCents: 0, totalPaidCents: 0 };
 
 async function delivered(
@@ -217,8 +220,45 @@ describe("Admiral dashboard on a known set", () => {
     }
   });
 
+  it("spreads the totals over the days of the range, empty days included", async () => {
+    switchTo(ADMIRAL);
+    expect(await getProfitSeries(around())).toEqual({
+      unit: "day",
+      points: [
+        { date: dayFromNow(-1), revenueCents: 0, profitCents: 0 },
+        { date: dayFromNow(0), revenueCents: 18800, profitCents: 7000 },
+        { date: dayFromNow(1), revenueCents: 0, profitCents: 0 },
+      ],
+    });
+  });
+
+  it("groups a long range by month and still adds up to the totals", async () => {
+    switchTo(ADMIRAL);
+    const series = await getProfitSeries({ start: new Date(Date.now() - 200 * DAY), end: new Date(Date.now() + DAY) });
+
+    expect(series.unit).toBe("month");
+    expect(series.points.length).toBeGreaterThanOrEqual(7);
+    for (const point of series.points) expect(point.date).toMatch(/^\d{4}-\d{2}-01$/);
+    expect(series.points.find((point) => point.date === `${dayFromNow(0).slice(0, 7)}-01`)).toMatchObject({
+      revenueCents: 18800,
+      profitCents: 7000,
+    });
+    expect(series.points.reduce((sum, point) => sum + point.revenueCents, 0)).toBe(18800);
+  });
+
+  it("gives one zero point per day for a range with no deliveries", async () => {
+    switchTo(ADMIRAL);
+    const { points } = await getProfitSeries(parseRange("2020-01-01", "2020-01-31"));
+
+    expect(points).toHaveLength(31);
+    expect(points[0].date).toBe("2020-01-01");
+    expect(points[30].date).toBe("2020-01-31");
+    for (const point of points) expect(point).toMatchObject({ revenueCents: 0, profitCents: 0 });
+  });
+
   it.each([CUSTOMER, MARS_MANAGER, CAPTAIN])("is FORBIDDEN for %s", async (email) => {
     switchTo(email);
+    await expect(getProfitSeries(around())).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(getCompanyTotals(around())).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(getPlanetProfitSummary(around())).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(getPlanetProductTable(around())).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -265,9 +305,28 @@ describe("Admiral dashboard on a known set", () => {
       expect(progress.total).toEqual({ units: 8, productAmountCents: 10400, deliveryChargesCents: 4000, totalPaidCents: 14400 });
     });
 
+    it("spreads the planet's spend over the days, one planet at a time", async () => {
+      switchTo(MARS_MANAGER);
+      expect(await getPlanetSpendSeries(around())).toEqual({
+        unit: "day",
+        points: [
+          { date: dayFromNow(-1), totalPaidCents: 0 },
+          { date: dayFromNow(0), totalPaidCents: 17800 },
+          { date: dayFromNow(1), totalPaidCents: 0 },
+        ],
+      });
+
+      switchTo(VENUS_MANAGER);
+      expect((await getPlanetSpendSeries(around())).points.map((point) => point.totalPaidCents)).toEqual([0, 6500, 0]);
+    });
+
     it("has no cost, profit or margin key at any depth", async () => {
       switchTo(MARS_MANAGER);
-      const keys = [...deepKeys(await getPlanetPurchases(around())), ...deepKeys(await getPlanetInProgress())];
+      const keys = [
+        ...deepKeys(await getPlanetPurchases(around())),
+        ...deepKeys(await getPlanetInProgress()),
+        ...deepKeys(await getPlanetSpendSeries(around())),
+      ];
       expect(keys).toContain("totalPaidCents");
       expect(keys.filter((key) => /cost|profit|margin|revenue/i.test(key))).toEqual([]);
     });
@@ -298,6 +357,7 @@ describe("Admiral dashboard on a known set", () => {
       switchTo(email);
       await expect(getPlanetPurchases(around())).rejects.toMatchObject({ code: "FORBIDDEN" });
       await expect(getPlanetInProgress()).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(getPlanetSpendSeries(around())).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
 });

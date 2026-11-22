@@ -1,53 +1,54 @@
 import { Money } from "@/components/money";
 import type { Purchases } from "../service";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // What the planet bought. No cost and no profit: a manager never gets them.
 export function PurchasesTable({ purchases }: { purchases: Purchases }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-normal">Product</th>
-            <th className="px-3 py-2 text-right font-normal">Units</th>
-            <th className="px-3 py-2 text-right font-normal">Product amount</th>
-            <th className="px-3 py-2 text-right font-normal">Delivery charges</th>
-            <th className="px-3 py-2 text-right font-normal">Total paid</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>Product</TableHead>
+            <TableHead className="text-right">Units</TableHead>
+            <TableHead className="text-right">Product amount</TableHead>
+            <TableHead className="text-right">Delivery charges</TableHead>
+            <TableHead className="text-right">Total paid</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {purchases.rows.map((row) => (
-            <tr key={row.product} className="border-t">
-              <td className="px-3 py-1.5">{row.product}</td>
-              <td className="px-3 py-1.5 text-right tabular-nums">{row.units}</td>
-              <td className="px-3 py-1.5 text-right">
+            <TableRow key={row.product}>
+              <TableCell>{row.product}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.units}</TableCell>
+              <TableCell className="text-right">
                 <Money cents={row.productAmountCents} />
-              </td>
-              <td className="px-3 py-1.5 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={row.deliveryChargesCents} />
-              </td>
-              <td className="px-3 py-1.5 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={row.totalPaidCents} />
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 font-semibold">
-            <td className="px-3 py-2">Total</td>
-            <td className="px-3 py-2 text-right tabular-nums">{purchases.total.units}</td>
-            <td className="px-3 py-2 text-right">
+        </TableBody>
+        <TableFooter>
+          <TableRow className="font-semibold">
+            <TableCell>Total</TableCell>
+            <TableCell className="text-right tabular-nums">{purchases.total.units}</TableCell>
+            <TableCell className="text-right">
               <Money cents={purchases.total.productAmountCents} />
-            </td>
-            <td className="px-3 py-2 text-right">
+            </TableCell>
+            <TableCell className="text-right">
               <Money cents={purchases.total.deliveryChargesCents} />
-            </td>
-            <td className="px-3 py-2 text-right">
+            </TableCell>
+            <TableCell className="text-right">
               <Money cents={purchases.total.totalPaidCents} />
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+            </TableCell>
+          </TableRow>
+        </TableFooter>
+      </Table>
     </div>
   );
 }

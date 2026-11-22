@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { formatMoney } from "@/lib/money";
 import type { PlanetNode } from "../service";
 import { findDivision } from "../tree";
-
-const SELECT =
-  "h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
 
 type Props = {
   tree: PlanetNode[];
@@ -28,9 +26,9 @@ export function LocationPicker({ tree, divisionId, onChange }: Props) {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="planet">Planet</Label>
-          <select
+          <NativeSelect
             id="planet"
-            className={SELECT}
+            className="w-full"
             value={planetId}
             onChange={(event) => {
               setPlanetId(event.target.value);
@@ -38,19 +36,19 @@ export function LocationPicker({ tree, divisionId, onChange }: Props) {
               onChange(null);
             }}
           >
-            <option value="">Choose a planet</option>
+            <NativeSelectOption value="">Choose a planet</NativeSelectOption>
             {tree.map((each) => (
-              <option key={each.id} value={each.id}>
+              <NativeSelectOption key={each.id} value={each.id}>
                 {each.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="sector">Sector</Label>
-          <select
+          <NativeSelect
             id="sector"
-            className={SELECT}
+            className="w-full"
             value={sectorId}
             disabled={!planet}
             onChange={(event) => {
@@ -58,30 +56,30 @@ export function LocationPicker({ tree, divisionId, onChange }: Props) {
               onChange(null);
             }}
           >
-            <option value="">Choose a sector</option>
+            <NativeSelectOption value="">Choose a sector</NativeSelectOption>
             {planet?.sectors.map((each) => (
-              <option key={each.id} value={each.id}>
+              <NativeSelectOption key={each.id} value={each.id}>
                 {each.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="division">Division</Label>
-          <select
+          <NativeSelect
             id="division"
-            className={SELECT}
+            className="w-full"
             value={divisionId ?? ""}
             disabled={!sector}
             onChange={(event) => onChange(event.target.value || null)}
           >
-            <option value="">Choose a division</option>
+            <NativeSelectOption value="">Choose a division</NativeSelectOption>
             {sector?.divisions.map((each) => (
-              <option key={each.id} value={each.id}>
+              <NativeSelectOption key={each.id} value={each.id}>
                 {each.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       </div>
       <p className="text-sm text-muted-foreground" aria-live="polite">

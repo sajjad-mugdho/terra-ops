@@ -4,41 +4,42 @@ import { updatePlanetChargesAction } from "../actions";
 import { fullShipCoversFuel } from "../break-even";
 import type { PlanetForAdmiral } from "../service";
 import { EditMoneyDialog } from "./edit-money-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export function PlanetTable({ planets }: { planets: PlanetForAdmiral[] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-normal">Planet</th>
-            <th className="px-3 py-2 text-right font-normal">Days from Earth</th>
-            <th className="px-3 py-2 text-right font-normal">Delivery charge per unit</th>
-            <th className="px-3 py-2 text-right font-normal">Fuel cost per trip</th>
-            <th className="px-3 py-2 font-normal">Units needed to cover fuel</th>
-            <th className="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-lg border">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
+            <TableHead>Planet</TableHead>
+            <TableHead className="text-right">Days from Earth</TableHead>
+            <TableHead className="text-right">Delivery charge per unit</TableHead>
+            <TableHead className="text-right">Fuel cost per trip</TableHead>
+            <TableHead>Units needed to cover fuel</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {planets.map((planet) => (
-            <tr key={planet.id} className="border-t">
-              <td className="px-3 py-2 font-medium">{planet.name}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{planet.daysFromEarth}</td>
-              <td className="px-3 py-2 text-right">
+            <TableRow key={planet.id}>
+              <TableCell className="font-medium">{planet.name}</TableCell>
+              <TableCell className="text-right tabular-nums">{planet.daysFromEarth}</TableCell>
+              <TableCell className="text-right">
                 <Money cents={planet.deliveryChargeCents} />
-              </td>
-              <td className="px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 <Money cents={planet.fuelCostCents} />
-              </td>
-              <td className="px-3 py-2">
+              </TableCell>
+              <TableCell>
                 <span className="flex flex-wrap items-center gap-2 tabular-nums">
                   {planet.unitsToCoverFuel ?? "Never covers fuel"}
                   {!fullShipCoversFuel(planet.unitsToCoverFuel) && (
                     <StatusBadge label="A full ship cannot cover the fuel cost" tone="danger" />
                   )}
                 </span>
-              </td>
-              <td className="px-3 py-2">
+              </TableCell>
+              <TableCell>
                 <EditMoneyDialog
                   id={planet.id}
                   title={`Edit ${planet.name}`}
@@ -58,11 +59,11 @@ export function PlanetTable({ planets }: { planets: PlanetForAdmiral[] }) {
                     },
                   ]}
                 />
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
