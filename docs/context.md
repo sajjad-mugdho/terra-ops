@@ -194,6 +194,11 @@ Reference material (data model, status machines, money, permissions) is in `plan
 
 ## Changelog
 
+### 2026-11-22 · Demo accounts in a dropdown
+
+- The login page is one card: the form, then a "Demo account" dropdown with every seeded user grouped by role, then one button. The list of 16 buttons is gone and the page fits one screen.
+- `DemoLoginList` became `DemoLoginSelect`. It is a native select, so it works with the keyboard and without JavaScript. `demoLoginAction` is unchanged.
+
 ### 2026-11-22 · Requirement re-check
 
 - Walked `traceability.md` again after phases 7 and 8. All 34 requirements are still covered. R34 now says what is true (D68).

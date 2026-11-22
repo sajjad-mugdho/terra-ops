@@ -112,6 +112,7 @@ Decisions: D65 (landing page, look from `../../design.md`), D66 (public catalog 
 | `app/(auth)/layout.tsx` | Two columns from `lg` up in the `.landing` scope: logo and form on the left, the sky with one line of text on the right |
 | `components/ui/liquid-nebula.tsx` (client) | One WebGL2 fragment shader: slow liquid gas, stars, a planet rim |
 | `lib/webgl.ts` | `linkProgram`, shared with the hero scene |
+| `DemoLoginSelect` | The 16 demo accounts in one native select grouped by role, in the same card as the login form. It replaces a list of 16 buttons, so the page fits one screen |
 
 ### Acceptance criteria
 

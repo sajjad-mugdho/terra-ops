@@ -15,7 +15,7 @@ Lets people sign in, lets customers sign up, and tells every other feature who i
 | `features/auth/demo-users.ts` | The seeded demo accounts (also read by the seed) |
 | `features/auth/schemas.ts` | Sign-in and sign-up schemas |
 | `features/auth/actions.ts` | 4 actions |
-| `features/auth/components/` | `LoginForm`, `SignUpForm`, `DemoLoginList` |
+| `features/auth/components/` | `LoginForm`, `SignUpForm`, `DemoLoginSelect` (one dropdown of the seeded accounts, grouped by role) |
 | `app/(auth)/login`, `app/(auth)/sign-up` | Pages |
 | `app/(auth)/layout.tsx` | Two columns: logo and form on the left, `LiquidNebula` on the right (D67). Sends a signed-in user home |
 | `app/api/auth/[...all]/route.ts` | Better Auth handler |

@@ -46,7 +46,7 @@ Four roles, each with its own home:
 ## 2. Demo users and a 2-minute tour per role
 
 The live URL opens on a landing page: an orbit of the seven planets, a delivery price calculator and one "Enter as" button per role.
-Or open `/login` and click a name under "Demo accounts". No typing needed.
+Or open `/login`, pick a user from the "Demo account" dropdown and press "Log in with this account". No typing needed.
 To type instead: every demo account has the password `terra-demo-2026`.
 
 | Role | Email | Starts on |
