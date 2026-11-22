@@ -81,7 +81,7 @@ export function OrbitExplorer({ planets }: { planets: LandingPlanet[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] lg:gap-16">
       <div
         ref={frame}
         data-paused={paused ? "" : undefined}
@@ -173,52 +173,54 @@ export function OrbitExplorer({ planets }: { planets: LandingPlanet[] }) {
         </button>
       </div>
 
-      <div role="group" aria-label="Pick a destination" className="flex flex-wrap gap-2">
-        {planets.map((each) => (
-          <button
-            key={each.name}
-            type="button"
-            aria-pressed={each.name === selected}
-            onClick={() => toggle(each.name)}
-            className={cn(CHIP, "cursor-pointer aria-pressed:border-white aria-pressed:bg-white aria-pressed:text-black")}
-          >
-            {each.name}
-          </button>
-        ))}
-      </div>
+      <div className="flex flex-col gap-6">
+        <div role="group" aria-label="Pick a destination" className="flex flex-wrap gap-2">
+          {planets.map((each) => (
+            <button
+              key={each.name}
+              type="button"
+              aria-pressed={each.name === selected}
+              onClick={() => toggle(each.name)}
+              className={cn(CHIP, "cursor-pointer aria-pressed:border-white aria-pressed:bg-white aria-pressed:text-black")}
+            >
+              {each.name}
+            </button>
+          ))}
+        </div>
 
-      <div aria-live="polite" className="min-h-48 rounded-lg border bg-card p-6">
-        {planet ? (
-          <>
-            <p className={EYEBROW}>Destination</p>
-            <h2 className="mt-3 text-[2rem] leading-9 tracking-[-0.019em]">{planet.name}</h2>
-            <dl className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <dt className={LABEL}>Travel</dt>
-                <dd className="mt-1 text-body">{days(planet.daysFromEarth)} from Earth</dd>
-              </div>
-              <div>
-                <dt className={LABEL}>Delivery</dt>
-                <dd className="mt-1 text-body">{formatMoney(planet.deliveryChargeCents)} per unit</dd>
-              </div>
-            </dl>
-            {ORBITS[planet.name] && <p className="mt-4 text-sm text-muted-foreground">{ORBITS[planet.name].quip}</p>}
-          </>
-        ) : selected === PLUTO.name ? (
-          <>
-            <p className={EYEBROW}>Off the map</p>
-            <h2 className="mt-3 text-[2rem] leading-9 tracking-[-0.019em]">{PLUTO.name}</h2>
-            <p className="mt-4 text-body">{PLUTO.quip}</p>
-          </>
-        ) : (
-          <>
-            <p className={EYEBROW}>Destinations</p>
-            <p className="mt-3 max-w-md text-body">
-              Pick a planet on the map or from the list. The orbit stops and a rocket shows the route from Earth.
-            </p>
-            <p className="mt-4 text-sm text-muted-foreground">There is a dot we do not deliver to. See if you can find it.</p>
-          </>
-        )}
+        <div aria-live="polite" className="min-h-48 rounded-lg border bg-card p-6">
+          {planet ? (
+            <>
+              <p className={EYEBROW}>Destination</p>
+              <h3 className="mt-3 text-[2rem] leading-9 tracking-[-0.019em]">{planet.name}</h3>
+              <dl className="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <dt className={LABEL}>Travel</dt>
+                  <dd className="mt-1 text-body">{days(planet.daysFromEarth)} from Earth</dd>
+                </div>
+                <div>
+                  <dt className={LABEL}>Delivery</dt>
+                  <dd className="mt-1 text-body">{formatMoney(planet.deliveryChargeCents)} per unit</dd>
+                </div>
+              </dl>
+              {ORBITS[planet.name] && <p className="mt-4 text-sm text-muted-foreground">{ORBITS[planet.name].quip}</p>}
+            </>
+          ) : selected === PLUTO.name ? (
+            <>
+              <p className={EYEBROW}>Off the map</p>
+              <h3 className="mt-3 text-[2rem] leading-9 tracking-[-0.019em]">{PLUTO.name}</h3>
+              <p className="mt-4 text-body">{PLUTO.quip}</p>
+            </>
+          ) : (
+            <>
+              <p className={EYEBROW}>Destinations</p>
+              <p className="mt-3 max-w-md text-body">
+                Pick a planet on the map or from the list. The orbit stops and a rocket shows the route from Earth.
+              </p>
+              <p className="mt-4 text-sm text-muted-foreground">There is a dot we do not deliver to. See if you can find it.</p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

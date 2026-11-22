@@ -13,7 +13,9 @@ Its look comes from `../../design.md` (D65), not from the dashboard theme.
 | `features/landing/service.ts` | `getLandingCatalog`, the one public read (D66) |
 | `features/landing/orbit.ts` | Pure: `EARTH`, `ORBITS` (ring, dot, color, period, start angle, joke), `PLUTO`, `starField`, `routeBetween` |
 | `features/landing/steps.ts` | Pure: the four roles in order, each with its demo account |
-| `features/landing/components/landing-page.tsx` | Server: nav, hero, numbers, section order |
+| `components/ui/singularity-horizon.tsx` | Client: the hero scene. A WebGL2 accretion disk on a canvas, a title and status that cycle, readouts, and a slot for the headline and links |
+| `components/ui/singularity-states.ts` | Plain data: the three looks of the scene. The page replaces their words |
+| `features/landing/components/landing-page.tsx` | Server: nav, numbers, section order |
 | `features/landing/components/orbit-explorer.tsx` | Client: the orbit, planet list, readout, route |
 | `features/landing/components/how-it-works.tsx` | Server: the flight line and the role cards |
 | `features/landing/components/demo-entry.tsx` | Client: form and button around `demoLoginAction` |
@@ -66,3 +68,6 @@ flowchart TD
 | The map buttons are `aria-hidden` with `tabIndex={-1}` | The planet list is the one control for keyboard and screen reader |
 | Landing classes sit in `@layer components` | Tailwind utilities still win over them |
 | The page root has `overflow-x: clip` | A turned ring has a wider bounding box than the circle it draws |
+| The hero scene draws only while an `IntersectionObserver` sees the canvas | A full-screen WebGL scene is the most expensive thing on the page |
+| The scene states are in a file without `"use client"` | A Server Component cannot read a value exported by a client module |
+| The hero canvas uses `touch-action: pan-y` | With `none` a phone could not scroll past a full-screen canvas |

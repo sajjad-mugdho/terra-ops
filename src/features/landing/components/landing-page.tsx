@@ -1,5 +1,8 @@
 import { Rocket } from "lucide-react";
 import Link from "next/link";
+import { SingularityHorizon } from "@/components/ui/singularity-horizon";
+import { DEFAULT_SINGULARITY_STATES } from "@/components/ui/singularity-states";
+import { OVERDUE_DAYS } from "@/features/orders/waiting";
 import { TRIP_CAPACITY } from "@/features/trips/status";
 import type { LandingCatalog } from "../service";
 import { CostCalculator } from "./cost-calculator";
@@ -37,6 +40,13 @@ export function LandingPage({ catalog }: { catalog: LandingCatalog }) {
   const { planets, products } = catalog;
   const nearest = planets.at(0);
   const farthest = planets.at(-1);
+  // The three looks of the scene keep their motion. Only the words are ours.
+  const heroCopy = [
+    { title: "All routes nominal", status: `Earth to ${planets.length} planets` },
+    { title: "Turbulence ahead", status: "Captains advised" },
+    { title: "Not a delivery address", status: "Black holes excluded" },
+  ];
+  const heroStates = DEFAULT_SINGULARITY_STATES.map((state, index) => ({ ...state, ...heroCopy[index] }));
 
   return (
     <div className="landing dark flex flex-1 flex-col overflow-x-clip bg-background text-foreground">
@@ -69,30 +79,37 @@ export function LandingPage({ catalog }: { catalog: LandingCatalog }) {
       </header>
 
       <main className="flex-1">
-        <section
-          className={`${CONTAINER} grid items-center gap-12 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)] lg:gap-16`}
+        <SingularityHorizon
+          height="calc(100svh - 3.5rem)"
+          className="min-h-[38rem]"
+          states={heroStates}
+          readouts={{
+            left: [
+              { label: "Origin", value: "Earth" },
+              { label: "Destinations", value: String(planets.length) },
+            ],
+            right: [
+              { label: "Ship_capacity", value: `${TRIP_CAPACITY} units` },
+              { label: "Late_after", value: `${OVERDUE_DAYS} days` },
+            ],
+          }}
         >
-          <div>
-            <p className={EYEBROW}>Earth to {planets.length} planets</p>
-            <h1 className="mt-6 text-5xl leading-none tracking-[-0.025em] md:text-7xl">Supplies for every planet.</h1>
-            <p className="mt-6 max-w-xl text-lg leading-7 text-body">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-4xl leading-none tracking-[-0.025em] md:text-6xl">Supplies for every planet.</h1>
+            <p className="mx-auto mt-4 max-w-xl leading-6 text-body md:text-lg md:leading-7">
               {products.length > 0 ? sentenceList(products.map((product) => product.name)) : "Supplies"}, flown from
               Earth to {planets.length} planets.
-              Order in a minute, follow every step, and know the price before you pay.
             </p>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link href="/login" className={PILL_SOLID}>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link href="/login" className={`${PILL_SOLID} pointer-events-auto`}>
                 Try the demo
               </Link>
-              <a href="#how" className={PILL_OUTLINE}>
-                How it works
+              <a href="#planets" className={`${PILL_OUTLINE} pointer-events-auto bg-black/40 backdrop-blur-sm`}>
+                Pick a planet
               </a>
             </div>
           </div>
-          <div id="planets" className="scroll-mt-20">
-            <OrbitExplorer planets={planets} />
-          </div>
-        </section>
+        </SingularityHorizon>
 
         <section aria-label="In numbers" className="border-t">
           <ul className={`${CONTAINER} grid grid-cols-2 px-0 md:grid-cols-5`}>
@@ -102,6 +119,19 @@ export function LandingPage({ catalog }: { catalog: LandingCatalog }) {
             {nearest && <Fact value={nearest.daysFromEarth} label={`Days to ${nearest.name}, the nearest`} />}
             {farthest && <Fact value={farthest.daysFromEarth} label={`Days to ${farthest.name}, the farthest`} />}
           </ul>
+        </section>
+
+        <section id="planets" className="scroll-mt-14 border-t">
+          <div className={`${CONTAINER} py-16`}>
+            <p className={EYEBROW}>The route map</p>
+            <h2 className={`mt-4 ${HEADLINE}`}>Pick a planet.</h2>
+            <p className="mt-4 max-w-xl text-lg leading-7 text-body">
+              {planets.length} stops and one home port. Every trip starts on Earth.
+            </p>
+            <div className="mt-10">
+              <OrbitExplorer planets={planets} />
+            </div>
+          </div>
         </section>
 
         <HowItWorks />

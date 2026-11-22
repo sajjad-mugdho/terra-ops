@@ -10,7 +10,7 @@ Decisions: D65 (landing page, look from `../../design.md`), D66 (public catalog 
 
 ## Slice 8.1 · Page, hero and orbit
 
-**Outcome:** `/` is a page. Its hero shows the planets in orbit, and a visitor can pick one.
+**Outcome:** `/` is a page. It opens on a full-screen black hole scene with the headline, and further down a visitor can pick a planet from an orbit.
 
 ### Build
 
@@ -20,7 +20,8 @@ Decisions: D65 (landing page, look from `../../design.md`), D66 (public catalog 
 | Domain | `landing/orbit.ts`, pure: the look of each planet, `starField` (fixed seed), `routeBetween` (both ends in percent of the frame, and the angle) |
 | Route | `app/page.tsx`: a signed-in user is redirected to the role home, a visitor gets `LandingPage` |
 | Styles | `.landing` token scope and the landing keyframes in `app/globals.css` |
-| UI | `LandingPage` (nav, hero), `OrbitExplorer` (client): rings turning in CSS, planet list, readout card, route line and rocket from Earth, pause button, Pluto |
+| Hero | `components/ui/singularity-horizon.tsx` (client): the 21st.dev "Singularity Horizon" the owner supplied. Three looks that cycle every 10 seconds, each with our title and status, four readouts with real numbers, and a slot with the headline and two links. `singularity-states.ts` holds the looks as plain data |
+| UI | `LandingPage` (nav, section order), `OrbitExplorer` (client): rings turning in CSS, planet list, readout card, route line and rocket from Earth, pause button, Pluto |
 
 ### Acceptance criteria
 
@@ -39,6 +40,9 @@ Decisions: D65 (landing page, look from `../../design.md`), D66 (public catalog 
 | `prefers-reduced-motion` | Nothing turns. A selected route shows the rocket at the planet |
 | Keyboard only | The planet list and the pause button are reachable. The map buttons are skipped |
 | Empty database | The page renders with zero planets and no calculator |
+| No WebGL2 | The hero shows a still gradient of the same subject. Text and buttons are unchanged |
+| The hero is scrolled off screen | The scene stops drawing |
+| A finger swipes up on the hero | The page scrolls. A sideways drag turns the camera |
 
 ### Tests
 
