@@ -46,7 +46,7 @@ Role homes:
 | Action | Input | Steps | Result |
 |---|---|---|---|
 | `signInAction` | email, password | Trim and lowercase email → Better Auth sign in | Redirect to role home. Wrong details → "Invalid email or password" |
-| `signUpAction` | name (2–60), email, password (8–128) | Validate → Better Auth sign up (always customer) | Redirect to `/customer/orders`. Duplicate → field error on email |
+| `signUpAction` | name (2–60), email, password (8–128) | Validate → Better Auth sign up (always customer) | Redirect to `/customer`. Duplicate → field error on email |
 | `demoLoginAction` | email | Email must be in `demo-users.ts` → sign in with the demo password | Redirect to role home. Other email → `FORBIDDEN` |
 | `signOutAction` | — | Better Auth sign out | Redirect to `/login` |
 

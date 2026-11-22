@@ -114,9 +114,11 @@ Every role starts on a "Dashboard" with its headline numbers and charts. The pag
 | One counting rule | Money counts when the order is delivered. The Admiral, the manager and the captain always agree |
 | Status changes are race-safe | Two captains cannot take the same order. A ship cannot pass 20 units |
 | The database has the last word | Constraints and triggers refuse bad data even if the application code has a bug |
-| It is proven | 1058 automated tests, most of them against a real Postgres |
+| It is proven | 1119 automated tests, most of them against a real Postgres |
 
-What I gave less time to on purpose: visual polish, staff management, real payments. See [section 8](#8-out-of-scope-and-what-i-would-build-next).
+What I gave less time to on purpose: staff management, real payments. See [section 8](#8-out-of-scope-and-what-i-would-build-next).
+
+**About visual effects.** The brief says usability matters more than visual effects, and to skip the rocket animations. Every working page follows that: tables, forms, status text and plain charts, with no motion. The public landing page and the login and sign-up pages are the one exception. I added them last, on purpose, as a first impression: a WebGL scene, an orbit of the planets, a small rocket. They hold no workflow, all their motion stops under `prefers-reduced-motion`, and removing them changes nothing in the product (D65, D67, D68).
 
 ## 4. Architecture
 
@@ -337,6 +339,7 @@ Every decision from [docs/context.md](docs/context.md), in plain words. The numb
 - **D64** Charts use Recharts through the shadcn chart component. Time series are built in SQL, so empty days are zero. Manager charts never hold cost or profit.
 - **D65** `/` is a public landing page built from `design.md`: dark only, its own token scope, CSS-only motion that stops under reduced motion. Signed-in users still go straight to their home.
 - **D66** The landing page reads planets and products without a session, and only what a customer sees at checkout. A test pins the allowed fields, so no cost can leak.
+- **D68** The brief asks to skip rocket animations. The working pages do. The landing and auth pages keep theirs as a deliberate first impression, and the README says so.
 - **D67** Login and sign-up are two columns in the look of the landing page: the form on the left, a WebGL2 liquid sky written for this repo on the right. Forms, actions and services are unchanged.
 
 ### Process

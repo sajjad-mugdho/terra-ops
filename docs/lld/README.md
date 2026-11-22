@@ -61,7 +61,7 @@ The only HTTP endpoints. Both are handled by Better Auth.
 | # | Action | Feature | Role | Input | Success | Main errors |
 |---|---|---|---|---|---|---|
 | 1 | `signInAction` | auth | Public | email, password | Redirect to role home | `INVALID` |
-| 2 | `signUpAction` | auth | Public | name, email, password | Redirect to `/customer/orders` | `INVALID` |
+| 2 | `signUpAction` | auth | Public | name, email, password | Redirect to `/customer` | `INVALID` |
 | 3 | `demoLoginAction` | auth | Public | email | Redirect to role home | `FORBIDDEN` |
 | 4 | `signOutAction` | auth | Any | — | Redirect to `/login` | — |
 | 5 | `updateProductAction` | settings | Admiral | productId, price, makingCost | "Saved" | `INVALID`, `NOT_FOUND` |

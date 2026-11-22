@@ -1,8 +1,8 @@
 # Requirements Traceability
 
-Every statement in the client's brief (`requremt-by-client.md`), checked against our docs. Last checked: 2026-11-21.
+Every statement in the client's brief (`requremt-by-client.md`), checked against our docs. Last checked: 2026-11-22, after phases 7 and 8 (see the changelog in `context.md`).
 
-**Result: 34 requirements, all fully covered.** Four gaps were found on the first check and closed by decisions D29 to D32 (section 3).
+**Result: 34 requirements covered.** 33 fully. R34 is met on every working page and has one stated exception: the public landing and auth pages keep visual effects by the owner's choice (D68). Four gaps were found on the first check and closed by decisions D29 to D32 (section 3).
 
 The client's PDF and `requremt-by-client.md` were compared line by line and are identical.
 
@@ -74,7 +74,7 @@ Status: ✅ covered.
 
 | # | Client says | Where we cover it | Status |
 |---|---|---|---|
-| R34 | Choose what matters, do it well, explain your choices. Usability over visual effects. No animations | README plan (slice 6.2), `hld.md` §15 trade-offs, plain shadcn UI | ✅ |
+| R34 | Choose what matters, do it well, explain your choices. Usability over visual effects. Skip the rocket animations | README sections 3 and 6, `hld.md` §15 trade-offs. Every signed-in page is plain shadcn UI with no motion. The public landing and auth pages keep visual effects by the owner's choice, stated in the README (D68) | ✅ working pages. ⚠️ public pages, by choice |
 
 ---
 

@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: { default: "Terra Supply Co.", template: "%s · Terra Supply Co." },
-  description: "Orders, trips and profit for every planet.",
+  description: "Orders, trips and reports for every planet.",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
