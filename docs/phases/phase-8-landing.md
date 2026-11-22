@@ -101,6 +101,35 @@ Decisions: D65 (landing page, look from `../../design.md`), D66 (public catalog 
 
 ---
 
+## Slice 8.4 · Login and sign-up
+
+**Outcome:** the two auth pages look like the landing page a visitor comes from. Decision D67.
+
+### Build
+
+| Piece | Work |
+|---|---|
+| `app/(auth)/layout.tsx` | Two columns from `lg` up in the `.landing` scope: logo and form on the left, the sky with one line of text on the right |
+| `components/ui/liquid-nebula.tsx` (client) | One WebGL2 fragment shader: slow liquid gas, stars, a planet rim |
+| `lib/webgl.ts` | `linkProgram`, shared with the hero scene |
+
+### Acceptance criteria
+
+- [ ] Login, demo login and sign-up work exactly as before.
+- [ ] At 1440px the sky fills the right half and stays in place while the long login page scrolls.
+- [ ] At 390px only the form shows and there is no horizontal scroll.
+- [ ] The pages are dark with either theme cookie.
+
+### Edge cases
+
+| Case | Expected |
+|---|---|
+| No WebGL2 | A still gradient in the same colors |
+| `prefers-reduced-motion` | One still frame |
+| The panel is hidden on a phone | No WebGL context is opened |
+
+---
+
 ## Phase gate
 
 On the live URL: `/` loads without a session, a planet can be picked, the calculator total for 3 Water to Mars is $45.00, "Enter as Customer" opens `/customer`, and `npm run smoke -- <url>` passes.

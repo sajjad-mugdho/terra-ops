@@ -45,7 +45,7 @@ Everything about this project is reachable from here. Start with the question, o
 | `database.md` | Us | Database design and ERD |
 | `plan.md` | Us | Reference: rules, seed, deploy. Its data model moved to `database.md` |
 | `deploy.md` | Us | Runbook: deploy, environment, smoke test, walkthrough |
-| `phases/` | Us | Work order: 36 vertical slices |
+| `phases/` | Us | Work order: 37 vertical slices |
 | `../design.md` | Owner | Design system of the landing page (D65). The signed-in app does not use it |
 
 If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan.md`, then `project.md`.
@@ -153,6 +153,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 | D64 | Charts | Recharts through the shadcn `chart` component, the one library added for this (asked and approved). Two generic client components: `MoneyTrendChart` (money over time) and `MoneyBarChart` (ranked bars or columns). One y axis per chart, exact amounts in the tooltip, a legend when there are two series, no animation because live pages refresh. Colors are `--chart-1` to `--chart-5`, a palette checked for color-blind separation on both card surfaces. Time series are built in SQL with `generate_series`, so empty days are zero: by day up to 92 days, by month up to 10 years, then by year (`reports/series.ts`). Manager series never hold cost or profit |
 | D65 | Landing page | `/` is a public landing page for a visitor. A signed-in user is still redirected to the role home. Its look comes from `design.md`, not from the dashboard theme: dark only, one near-black canvas, weight 400 type with tight tracking (Geist stands in for Universal Sans, as `design.md` allows), uppercase Geist Mono labels, pill buttons with one white filled pill per view, flat cards with hairline borders, accent colors only in the planet illustration. The tokens are scoped to `.landing` in `app/globals.css`, so the dashboard is untouched. One exception, chosen by the owner: the hero backdrop is the 21st.dev "Singularity Horizon", a WebGL2 scene of an accretion disk around a black hole that cycles through three looks, where `design.md` alone asks for no backdrop. Its type, labels and buttons still follow `design.md`. Everything below the hero follows `design.md` too: the orbit is a line illustration with flat dots and faint stars, no glow and no gradient. Six sections: black hole hero, numbers, the orbit of the planets, how an order moves through the four roles, a cost calculator, a launch pad. No new library: the hero is plain WebGL2 in `components/ui/singularity-horizon.tsx` (it draws only while on screen, shows one still frame under reduced motion and a still gradient without WebGL2), and the orbit, the scroll rocket and the launch are CSS. All motion stops under `prefers-reduced-motion`. The planet list is the keyboard control, the orbit is a pointer extra, and the orbit has a pause button. References came from the 21st.dev catalog through its MCP server (free tier: search, and two code pulls): the layout of "Orbital Hero Section" and "Footer with Big Wordmark" (MIT). All code is written for this repo |
 | D66 | Public catalog read | `landing/service.ts` `getLandingCatalog` has no session check, on purpose. It returns planet name, days from Earth and delivery charge, and product name and price: what any customer sees at checkout, and sign-up is open. It never returns an id, a fuel cost, a making cost or a profit, and a test pins the allowed keys. Every number on the landing page comes from this read or from a rule constant (`MAX_UNITS`, `TRIP_CAPACITY`, `OVERDUE_DAYS`), and the calculator uses the checkout formula `lineTotalCents`. The "Enter as" buttons reuse `demoLoginAction` |
+| D67 | Login and sign-up pages | Two columns from `lg` up: the form on the left, a moving sky on the right. On a phone only the form shows, and the WebGL context is never opened. Both pages use the `.landing` token scope, so a visitor moves from the landing page to the form without a theme jump. The forms, actions and services are unchanged. The sky is `components/ui/liquid-nebula.tsx`: one WebGL2 fragment shader written for this repo (a noise field warped by itself twice, stars, a planet rim) in the `design.md` accent colors. It starts when first seen, stops off screen, shows one still frame under reduced motion and a still gradient without WebGL2. `lib/webgl.ts` holds the one shader helper both WebGL components share. References from the 21st.dev catalog: "Warp Gradient", "Nebula Space Background", "Split Login" (search only, no code pulled) |
 
 ## Changes vs project.md
 
@@ -167,7 +168,7 @@ If two docs disagree: `context.md` wins, then `lld/`, then `phases/`, then `plan
 
 ## Plan
 
-Reference material (data model, status machines, money, permissions) is in `plan.md`. The work order is in `phases/`: 9 phase files, 36 vertical slices, each with acceptance criteria, edge cases and tests. Items still waiting for confirmation are in its section 15.
+Reference material (data model, status machines, money, permissions) is in `plan.md`. The work order is in `phases/`: 9 phase files, 37 vertical slices, each with acceptance criteria, edge cases and tests. Items still waiting for confirmation are in its section 15.
 
 ## Phase status
 
@@ -181,8 +182,8 @@ Reference material (data model, status machines, money, permissions) is in `plan
 | 4 Usability | Slices 4.1 to 4.3 done locally and in CI. The two-browser check on the live URL waits for slice 0.6 |
 | 5 History | Slice 5.1 done locally and in CI. The phase gate on the live URL waits for slice 0.6 |
 | 6 Ship | 6.2 README done. Everything in 6.1 and 6.4 that needs no live URL is done locally and in CI: runbook, env validation, smoke test, repo check. Waiting for the owner: the Neon and Vercel projects (slice 0.6), the 13-step walkthrough on the live URL, the video (6.3), making the repo public |
-| 7 Dashboard redesign | Slices 7.1 to 7.4 done locally. Checked by screenshot for every role at 1440px, and the Admiral pages at 390px and in dark. The gate on the live URL waits for the push |
-| 8 Landing page | Slices 8.1 to 8.3 done locally. Checked by screenshot at 1440px and 390px: a planet selected, the scroll rocket, the launch sequence, reduced motion, no horizontal scroll. The gate on the live URL waits for the push |
+| 7 Dashboard redesign | Slices 7.1 to 7.4 done and pushed, CI green. Checked by screenshot for every role at 1440px, and the Admiral pages at 390px and in dark. The gate on the live URL waits for sign-in there (`BETTER_AUTH_URL`) |
+| 8 Landing page | Slices 8.1 to 8.3 pushed, CI green, and the landing page is live. Slice 8.4 (login and sign-up) is done locally. Checked by screenshot at 1440px and 390px: the three looks of the hero, a planet selected, the scroll rocket, the launch sequence, both auth pages, reduced motion, no horizontal scroll. Sign-in on the live URL waits for `BETTER_AUTH_URL` on Vercel |
 
 ## Open questions
 
@@ -191,6 +192,14 @@ Reference material (data model, status machines, money, permissions) is in `plan
 - The live URL and the video link are still to be added to `README.md` and to this file.
 
 ## Changelog
+
+### 2026-11-22 · Login and sign-up redesign
+
+- Decision D67 and slice 8.4. The owner asked for two sections: the form on the left, a moving gradient or liquid sky on the right.
+- `app/(auth)/layout.tsx` is a two-column layout in the `.landing` scope. The logo links to `/`.
+- New `components/ui/liquid-nebula.tsx` and `lib/webgl.ts`. `singularity-horizon.tsx` now uses the shared helper.
+- No change to any form, action or service. No new dependency.
+- Pushed before this entry: phases 7 and 8 up to the black hole hero. CI run 45042249806 is green and the landing page is live. Sign-in on the live URL still answers 403 `INVALID_ORIGIN` until `BETTER_AUTH_URL` on Vercel is the live URL.
 
 ### 2026-11-22 · Phase 8, landing page
 

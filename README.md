@@ -337,6 +337,7 @@ Every decision from [docs/context.md](docs/context.md), in plain words. The numb
 - **D64** Charts use Recharts through the shadcn chart component. Time series are built in SQL, so empty days are zero. Manager charts never hold cost or profit.
 - **D65** `/` is a public landing page built from `design.md`: dark only, its own token scope, CSS-only motion that stops under reduced motion. Signed-in users still go straight to their home.
 - **D66** The landing page reads planets and products without a session, and only what a customer sees at checkout. A test pins the allowed fields, so no cost can leak.
+- **D67** Login and sign-up are two columns in the look of the landing page: the form on the left, a WebGL2 liquid sky written for this repo on the right. Forms, actions and services are unchanged.
 
 ### Process
 

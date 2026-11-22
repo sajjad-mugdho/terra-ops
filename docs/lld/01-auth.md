@@ -17,6 +17,7 @@ Lets people sign in, lets customers sign up, and tells every other feature who i
 | `features/auth/actions.ts` | 4 actions |
 | `features/auth/components/` | `LoginForm`, `SignUpForm`, `DemoLoginList` |
 | `app/(auth)/login`, `app/(auth)/sign-up` | Pages |
+| `app/(auth)/layout.tsx` | Two columns: logo and form on the left, `LiquidNebula` on the right (D67). Sends a signed-in user home |
 | `app/api/auth/[...all]/route.ts` | Better Auth handler |
 
 ## 3. Data it owns

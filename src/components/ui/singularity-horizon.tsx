@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
+import { linkProgram } from "@/lib/webgl";
 import { DEFAULT_SINGULARITY_STATES, type SingularityState } from "./singularity-states";
 
 // The 21st.dev "Singularity Horizon" (raw WebGL2), with named readouts and a slot for hero content.
@@ -161,31 +162,6 @@ void main() {
 }
 `;
 
-function compile(gl: WebGL2RenderingContext, vert: string, frag: string) {
-  const program = gl.createProgram();
-  for (const [type, source] of [
-    [gl.VERTEX_SHADER, vert],
-    [gl.FRAGMENT_SHADER, frag],
-  ] as const) {
-    const shader = gl.createShader(type);
-    if (!shader) return null;
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.error("singularity-horizon:", gl.getShaderInfoLog(shader));
-      return null;
-    }
-    gl.attachShader(program, shader);
-    gl.deleteShader(shader);
-  }
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error("singularity-horizon:", gl.getProgramInfoLog(program));
-    return null;
-  }
-  return program;
-}
-
 function perspective(out: Float32Array, fovy: number, aspect: number, near: number, far: number) {
   const f = 1 / Math.tan(fovy / 2);
   out.fill(0);
@@ -291,8 +267,8 @@ export function SingularityHorizon({
     const gl = canvas.getContext("webgl2", { antialias: true, alpha: false, powerPreference: "high-performance" });
     if (!gl) return fail();
 
-    const diskProgram = compile(gl, DISK_VERT, DISK_FRAG);
-    const coreProgram = compile(gl, CORE_VERT, CORE_FRAG);
+    const diskProgram = linkProgram(gl, DISK_VERT, DISK_FRAG);
+    const coreProgram = linkProgram(gl, CORE_VERT, CORE_FRAG);
     if (!diskProgram || !coreProgram) return fail();
 
     const count = Math.max(1, Math.round(particles));

@@ -20,7 +20,7 @@ No slice builds a layer "for later". A table, function or component is added in 
 | 5 History | [phase-5-history.md](phase-5-history.md) | 5.1 Settings history page | Sun afternoon | ~1h |
 | 6 Ship | [phase-6-ship.md](phase-6-ship.md) | 6.1 Final reseed and walkthrough · 6.2 README · 6.3 Video · 6.4 Submission check | Sun evening | ~4h |
 | 7 Dashboard redesign | [phase-7-redesign.md](phase-7-redesign.md) | 7.1 Shell: sidebar, header, theme · 7.2 Shared pieces · 7.3 Admiral dashboard with charts · 7.4 Overview pages | Sun evening | ~5h |
-| 8 Landing page | [phase-8-landing.md](phase-8-landing.md) | 8.1 Page, hero and orbit · 8.2 Numbers and how it works · 8.3 Cost calculator, launch pad, footer | Sun night | ~3h |
+| 8 Landing page | [phase-8-landing.md](phase-8-landing.md) | 8.1 Page, hero and orbit · 8.2 Numbers and how it works · 8.3 Cost calculator, launch pad, footer · 8.4 Login and sign-up | Sun night | ~4h |
 
 Slices run in the listed order. Each depends only on slices above it.
 
