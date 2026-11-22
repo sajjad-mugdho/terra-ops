@@ -194,6 +194,11 @@ Reference material (data model, status machines, money, permissions) is in `plan
 
 ## Changelog
 
+### 2026-11-22 · README in plain words
+
+- The README opens with a part for readers who are not engineers: what is finished, each technology and why, how the code is organized and why, the design and why, how it was checked. The technical sections stay below it, unchanged in content.
+- Fixed in the README: the second test count (1058, now 1119) and the first step after `npm run dev`.
+
 ### 2026-11-22 · Demo accounts in a dropdown
 
 - The login page is one card: the form, then a "Demo account" dropdown with every seeded user grouped by role, then one button. The list of 16 buttons is gone and the page fits one screen.

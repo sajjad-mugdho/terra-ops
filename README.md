@@ -12,7 +12,111 @@ Built in one weekend with one goal: money and order status are always correct, a
 | Video walkthrough | Not recorded yet. It is recorded on the live URL |
 | Run it now | [Run locally](#9-run-locally-run-tests), about 3 minutes |
 
-## Contents
+## In plain words
+
+This part is for a reader who is not an engineer. The technical detail starts [further down](#technical-detail).
+
+### What this is
+
+Terra Supply Co. delivers water, oxygen, plants, food and machines from Earth to seven planets. Until now the company ran on spreadsheets and radio calls, so orders got lost and nobody knew which planets made money.
+
+This project is the software that replaces that. It is a website with four kinds of users, and each one sees only what they need.
+
+### What is finished
+
+Every point in the client's brief is built and working. The brief has 34 points, and [docs/traceability.md](docs/traceability.md) lists where each one is covered.
+
+| Who | What they can do today |
+|---|---|
+| Customer | Create an account, order up to 20 units to an address, pay, and follow the order through every step |
+| Planet Manager | Accept or reject the orders of their own planet, and see what the planet bought. They never see profit |
+| Captain | Build a trip to one planet, see the profit before leaving, and mark each step until every stop is delivered |
+| Grand Admiral | Change prices and costs at any time, and see units, revenue, cost and profit for every planet and product |
+
+Also finished, beyond the brief:
+
+- A dashboard with numbers and charts for every role.
+- A warning when a trip will lose money, and a flag on orders that wait more than 3 days.
+- Search, filters and pages on every list. A history of every price change.
+- A public landing page, and demo accounts so anyone can try each role in one click.
+- A live website, with automatic checks on every change.
+
+One honest note: the brief asks to skip visual effects. Every working screen does. The landing page and the login page have some on purpose, as a first impression.
+
+### What I built it with, and why
+
+| Technology | What it does here | Why I chose it |
+|---|---|---|
+| Next.js and React | The screens and the server logic, in one app | One app is faster to build, test and put online than two. Right for one developer and one weekend |
+| TypeScript | The programming language | It catches many mistakes while writing the code, before a user ever sees them |
+| PostgreSQL | The database | It can enforce rules by itself, for example "a ship never carries more than 20 units". Money and orders stay correct even if the code has a bug |
+| Drizzle | Connects the code to the database | Every database question is checked against the real table structure, so a typo is caught early |
+| Better Auth | Login and accounts | Login is easy to get wrong. A tested library is safer than writing my own |
+| Zod | Checks everything a user types or sends | Nothing reaches the database before it is checked |
+| Tailwind CSS and shadcn/ui | The look of the screens | Ready-made, accessible building blocks. The screens look consistent without a designer |
+| Recharts | The charts | Simple charts for the dashboards |
+| Vitest | Automated tests | 1119 tests re-check the rules after every change, in about 3 minutes |
+| GitHub Actions | Runs the checks automatically | No change goes online without passing every check |
+| Vercel and Neon | Hosting for the app and the database | Free to start, and every approved change goes live by itself |
+| Docker | Runs the database on a developer's computer | Every developer gets the same setup with one command |
+
+### How the code is organized, and why
+
+The code is grouped by business area, not by type of file.
+
+```
+src/
+├─ app/         The pages. One folder per role: admiral, manager, captain, customer
+├─ features/    One folder per business area: orders, trips, reports, settings, locations, auth
+├─ components/  Screen parts that every page shares, like the sidebar and the tables
+├─ db/          The database tables
+└─ lib/         Small shared tools, like money and date formatting
+docs/           The requirements, the design, every decision and the deployment guide
+```
+
+Why this way:
+
+- Everything about orders is in one place, and everything about trips is in another. A new developer finds things quickly.
+- Two people can work on two areas without stepping on each other.
+- The pages stay thin. The business rules live in the feature folders, where they are tested.
+
+### How the system is designed, and why
+
+One app and one database. Every request goes through the same three steps.
+
+```mermaid
+flowchart LR
+    A[Browser] --> B[Page]
+    B --> C["Service: who are you, what may you see"]
+    C --> D[("Database: the hard rules")]
+```
+
+| Design choice | Why |
+|---|---|
+| One app, one database | Simple to run and cheap. The right size for a company that is just starting. It can be split later if it grows |
+| One gate for all data | Every read and write passes a check: are you logged in, is this your role, is this your data. A manager can never see another planet |
+| The database enforces the rules too | The 20 unit limit, "one order is never split" and "history cannot be edited" are checked twice: in the code and in the database |
+| Prices are frozen on each order | When the Admiral changes a price today, last week's report does not change |
+| Money is counted in whole cents | No rounding errors, ever |
+| One counting rule | Money counts when an order is delivered. The Admiral, the manager and the captain always see numbers that agree |
+
+### How I made sure it works
+
+- **1119 automated tests.** They cover the money formulas, every order and trip step, what each role may see, and what happens when two people click at the same moment.
+- **Automatic checks on every change.** Code quality, all tests, a full build, then a test run against a fresh copy of the app.
+- **Numbers checked by hand.** Before submission I recounted the totals straight from the database and compared them with every role's screen. They match.
+- **Security basics.** A user's role comes from the server, never from the browser. No password or key is stored in the code.
+- **Everything is written down.** 68 decisions with their reasons, the design of every feature, and a step by step deployment guide, all in [docs/](docs/).
+
+### What is not built, on purpose
+
+Real payments, staff management, and adding or removing products. The brief did not ask for them, and one weekend is better spent on getting orders and money right. The full list and what I would build next are in [section 8](#8-out-of-scope-and-what-i-would-build-next).
+
+## Technical detail
+
+The rest of this file is for engineers.
+
+### Contents
 
 1. [What it is](#1-what-it-is)
 2. [Demo users and a 2-minute tour per role](#2-demo-users-and-a-2-minute-tour-per-role)
@@ -222,7 +326,7 @@ The application states the rule, and the database enforces it.
 | A manager sees profit | Manager queries never select making cost. A test walks every manager DTO at any depth and fails on a cost key |
 | A sign-up picks its own role | The role field is not an input. A request that sends `role: "admiral"` still creates a customer |
 
-**Tests.** 1058 automated tests in 3 groups:
+**Tests.** 1119 automated tests in 3 groups:
 
 - Pure rules: both status machines over every pair of statuses, money formulas, ETA, waiting time, profit and break-even.
 - Services against a real Postgres: permissions and scope for every role, snapshots, idempotency, and the races with real parallel calls (two captains on one order, parallel adds past 20 units, double clicks, the last two stops at once).
@@ -390,7 +494,7 @@ npm run db:seed -- --yes    # wipes and reseeds the database in DATABASE_URL
 npm run dev                 # http://localhost:3000
 ```
 
-Open http://localhost:3000 and click a demo account.
+Open http://localhost:3000 and press "Try the demo".
 
 If `db:migrate` says the connection was refused, the database is still starting. Wait a few seconds and run it again.
 
